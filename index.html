@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My App Portfolio</title>
+    <style>
+        /* Simple Reset & Base Styles */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f6f8;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        /* Header Styling */
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        h1 { margin-bottom: 10px; color: #24292e; }
+        p { color: #586069; font-size: 1.1rem; }
+
+        /* Grid Container for the Apps */
+        .app-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            width: 100%;
+            max-width: 900px;
+        }
+
+        /* Card Styling */
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            text-decoration: none;
+            color: inherit;
+            border: 1px solid #e1e4e8;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            height: 200px;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+            border-color: #0366d6;
+        }
+
+        .card h2 { font-size: 1.5rem; margin-bottom: 10px; color: #0366d6; }
+        .card span { font-size: 0.9rem; color: #666; }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>My Web Projects</h1>
+        <p>A collection of my static web applications hosted on GitHub.</p>
+    </header>
+
+    <div class="app-container">
+        
+        <a href="absorbtion/index.html" class="card">
+            <h2>Absorption</h2>
+            <span>Click to launch</span>
+        </a>
+
+        <a href="anaconda3d/index.html" class="card">
+            <h2>Anaconda 3D</h2>
+            <span>Click to launch</span>
+        </a>
+
+        <a href="cubeshooter/index.html" class="card">
+            <h2>Cube Shooter</h2>
+            <span>Click to launch</span>
+        </a>
+
+    </div>
+
+</body>
+</html>

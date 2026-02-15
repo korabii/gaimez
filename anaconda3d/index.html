@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Snake - Cyber Edition</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050005; font-family: 'Segoe UI', sans-serif; touch-action: none; }
+        #ui {
+            position: absolute;
+            top: 20px; left: 20px; color: #ffcc00;
+            text-shadow: 0 0 10px #ffaa00;
+            pointer-events: none; z-index: 5;
+        }
+        .stat { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
+        
+        #controls {
+            position: absolute; bottom: 30px; width: 100%;
+            display: flex; justify-content: center; gap: 40px;
+            z-index: 15; pointer-events: none;
+        }
+        .dpad { display: grid; grid-template-columns: repeat(3, 65px); grid-template-rows: repeat(2, 65px); gap: 10px; pointer-events: auto; }
+        .btn {
+            width: 65px; height: 65px; background: rgba(255, 204, 0, 0.1);
+            border: 2px solid #ffcc00; color: #ffcc00; border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            font-weight: bold; font-size: 20px; user-select: none; transition: 0.1s;
+        }
+        .btn:active { background: #ffcc00; color: #000; transform: scale(0.9); }
+        .up-btn { grid-column: 2; }
+        .left-btn { grid-column: 1; grid-row: 2; }
+        .down-btn { grid-column: 2; grid-row: 2; }
+        .right-btn { grid-column: 3; grid-row: 2; }
+
+        #overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(20, 0, 20, 0.95);
+            display: none; flex-direction: column;
+            justify-content: center; align-items: center;
+            z-index: 20; color: #ffcc00;
+        }
+        button {
+            padding: 15px 40px; font-size: 1.2em; background: #ffcc00;
+            color: #200020; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div id="score" class="stat">SCORE: 0</div>
+        <div style="color: #00ffff; font-size: 14px; letter-spacing: 1px;">SYSTEM ACTIVE</div>
+    </div>
+
+    <div id="controls">
+        <div class="dpad">
+            <div class="btn up-btn" onpointerdown="handleInput('w')">▲</div>
+            <div class="btn left-btn" onpointerdown="handleInput('a')">◀</div>
+            <div class="btn down-btn" onpointerdown="handleInput('s')">▼</div>
+            <div class="btn right-btn" onpointerdown="handleInput('d')">▶</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px; pointer-events:auto;">
+            <div class="btn" onpointerdown="handleInput('q')">UP</div>
+            <div class="btn" onpointerdown="handleInput('e')">DN</div>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <h1 style="color: #ff00ff; font-size: 3rem;">SYSTEM CRASH</h1>
+        <div id="finalScoreText" style="margin-bottom: 20px; font-size: 1.5rem;"></div>
+        <button onclick="resetGame()">REBOOT</button>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        const GRID_SIZE = 14;
+        const LIMIT = GRID_SIZE / 2;
+        let score = 0, isGameOver = false, moveDelay = 0.35;
+        let snake = [], snakeDir = new THREE.Vector3(1, 0, 0), nextDir = new THREE.Vector3(1, 0, 0);
+        let food = null, accumulatedTime = 0;
+        const clock = new THREE.Clock();
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x050005);
+        document.body.appendChild(renderer.domElement);
+
+        // Lights
+        scene.add(new THREE.AmbientLight(0xffffff, 0.2));
+        const pLight = new THREE.PointLight(0xff00ff, 1500, 50);
+        pLight.position.set(10, 10, 10);
+        scene.add(pLight);
+
+        // --- DECORATIONS ---
+        
+        // 1. Starfield
+        const starGeo = new THREE.BufferGeometry();
+        const starCount = 3000;
+        const starPositions = new Float32Array(starCount * 3);
+        for(let i = 0; i < starCount * 3; i++) {
+            starPositions[i] = (Math.random() - 0.5) * 200;
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.2, transparent: true, opacity: 0.8 }));
+        scene.add(stars);
+
+        // 2. Cyber Grid Floor (Anchor)
+        const gridHelper = new THREE.GridHelper(100, 20, 0xff00ff, 0x220022);
+        gridHelper.position.y = -LIMIT - 2;
+        scene.add(gridHelper);
+
+        // 3. Play Area Cage
+        const cageGeo = new THREE.BoxGeometry(GRID_SIZE, GRID_SIZE, GRID_SIZE);
+        const cageEdges = new THREE.EdgesGeometry(cageGeo);
+        const cage = new THREE.LineSegments(cageEdges, new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.3 }));
+        scene.add(cage);
+
+        // --- GAME LOGIC ---
+
+        function createCube(color, pos, isHead = false) {
+            const cube = new THREE.Mesh(
+                new THREE.BoxGeometry(0.85, 0.85, 0.85),
+                new THREE.MeshStandardMaterial({ 
+                    color, 
+                    emissive: color, 
+                    emissiveIntensity: isHead ? 0.8 : 0.2,
+                    metalness: 0.8,
+                    roughness: 0.2
+                })
+            );
+            cube.position.set(pos.x, pos.y, pos.z);
+            scene.add(cube);
+            return cube;
+        }
+
+        function initGame() {
+            isGameOver = false; score = 0; moveDelay = 0.35;
+            snakeDir.set(1, 0, 0); nextDir.set(1, 0, 0);
+            snake.forEach(s => scene.remove(s));
+            snake = [];
+            if (food) scene.remove(food);
+            for (let i = 0; i < 3; i++) {
+                snake.push(createCube(i === 0 ? 0xffcc00 : 0x00ffcc, { x: -i, y: 0, z: 0 }, i === 0));
+            }
+            spawnFood();
+            document.getElementById('overlay').style.display = 'none';
+        }
+
+        function spawnFood() {
+            if (food) scene.remove(food);
+            const r = () => Math.floor(Math.random() * GRID_SIZE) - LIMIT;
+            food = createCube(0xff00ff, { x: r(), y: r(), z: r() });
+            // Add a small light to the food
+            const foodLight = new THREE.PointLight(0xff00ff, 10, 5);
+            food.add(foodLight);
+        }
+
+        const wrap = (v) => v >= LIMIT ? -LIMIT : v < -LIMIT ? LIMIT - 1 : v;
+
+        function update() {
+            if (isGameOver) return;
+            snakeDir.copy(nextDir);
+            const head = snake[0];
+            const newPos = new THREE.Vector3(
+                wrap(Math.round(head.position.x + snakeDir.x)),
+                wrap(Math.round(head.position.y + snakeDir.y)),
+                wrap(Math.round(head.position.z + snakeDir.z))
+            );
+
+            for (let i = 1; i < snake.length; i++) {
+                if (newPos.distanceTo(snake[i].position) < 0.1) return gameOver();
+            }
+
+            if (newPos.distanceTo(food.position) < 0.1) {
+                score += 10;
+                moveDelay = Math.max(0.1, moveDelay - 0.01);
+                document.getElementById('score').innerText = `SCORE: ${score}`;
+                snake.push(createCube(0x00ffcc, { ...snake[snake.length-1].position }));
+                spawnFood();
+            }
+
+            for (let i = snake.length - 1; i > 0; i--) snake[i].position.copy(snake[i-1].position);
+            head.position.copy(newPos);
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            document.getElementById('finalScoreText').innerText = `DATA RECOVERED: ${score}`;
+            document.getElementById('overlay').style.display = 'flex';
+        }
+
+        window.handleInput = (key) => {
+            const k = key.toLowerCase();
+            let forward = new THREE.Vector3();
+            camera.getWorldDirection(forward);
+            forward.y = 0; forward.normalize();
+            let right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+            const snap = (v) => {
+                if (Math.abs(v.x) > Math.abs(v.z)) return new THREE.Vector3(Math.sign(v.x), 0, 0);
+                return new THREE.Vector3(0, 0, Math.sign(v.z));
+            };
+
+            let vF = snap(forward), vB = vF.clone().negate(), vR = snap(right), vL = vR.clone().negate();
+
+            let choice = new THREE.Vector3().copy(snakeDir);
+            if (k === 'w' || k === 'arrowup') choice = vF;
+            if (k === 's' || k === 'arrowdown') choice = vB;
+            if (k === 'a' || k === 'arrowleft') choice = vL;
+            if (k === 'd' || k === 'arrowright') choice = vR;
+            if (k === 'q') choice = new THREE.Vector3(0, 1, 0);
+            if (k === 'e') choice = new THREE.Vector3(0, -1, 0);
+
+            if (!choice.equals(snakeDir.clone().negate())) nextDir.copy(choice);
+        };
+
+        window.addEventListener('keydown', (e) => handleInput(e.key));
+        window.resetGame = initGame;
+        initGame();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            accumulatedTime += clock.getDelta();
+            if (!isGameOver && accumulatedTime >= moveDelay) {
+                update();
+                accumulatedTime = 0;
+            }
+
+            // Slowly rotate background stars
+            stars.rotation.y += 0.0005;
+
+            // Orbital Camera
+            const t = Date.now() * 0.0002;
+            camera.position.set(Math.cos(t) * 22, 14, Math.sin(t) * 22);
+            camera.lookAt(0, 0, 0);
+
+            // Food animation
+            if (food) {
+                food.rotation.y += 0.05;
+                food.scale.setScalar(1 + Math.sin(Date.now() * 0.01) * 0.1);
+            }
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
