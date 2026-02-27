@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Three.js Car Arena - Health Carryover</title>
+    <title>Three.js Car Arena - Restart & Anti-Zoom</title>
     <style>
         body { 
             margin: 0; 
@@ -12,7 +12,7 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none; 
+            touch-action: none; /* Helps prevent swipe-to-scroll and pinch-zoom */
         }
         #ui {
             position: absolute;
@@ -30,6 +30,7 @@
         h2, h3, p { margin: 0 0 10px 0; }
         p { color: #aaa; font-size: 14px; }
         .stat { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
+        
         #gameover, #levelAlert {
             display: none;
             position: absolute;
@@ -39,11 +40,37 @@
             font-size: 50px;
             font-weight: bold;
             text-shadow: 2px 2px 10px #000;
-            pointer-events: none;
             z-index: 20;
         }
-        #gameover { color: #ff3333; }
-        #levelAlert { color: #55ff55; }
+        
+        #gameover { 
+            color: #ff3333; 
+            pointer-events: auto; /* Allows us to click the restart button */
+        }
+        
+        #levelAlert { 
+            color: #55ff55; 
+            pointer-events: none;
+        }
+
+        #restartBtn {
+            margin-top: 20px;
+            padding: 15px 40px;
+            font-size: 24px;
+            background: #ff3333;
+            color: white;
+            border: 3px solid white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.5);
+            -webkit-tap-highlight-color: transparent;
+        }
+        #restartBtn:active {
+            background: #cc0000;
+            transform: scale(0.95);
+        }
 
         /* --- Mobile Controls UI --- */
         #mobile-controls {
@@ -102,7 +129,12 @@
         <div class="stat" id="healthDisp">Health: 3</div>
         <div class="stat" id="powerDisp" style="color: #ffaa00;">Weapon: Normal</div>
     </div>
-    <div id="gameover">GAME OVER</div>
+    
+    <div id="gameover">
+        GAME OVER<br>
+        <button id="restartBtn">Restart</button>
+    </div>
+    
     <div id="levelAlert">LEVEL CLEARED!</div>
 
     <div id="mobile-controls">
@@ -127,6 +159,24 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script>
+        // --- HARDCORE ANTI-ZOOM FOR MOBILE ---
+        // Prevent double-tap to zoom
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function (event) {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, { passive: false });
+
+        // Prevent pinch to zoom
+        document.addEventListener('touchmove', function (event) {
+            if (event.scale !== 1 && event.scale !== undefined) {
+                event.preventDefault();
+            }
+        }, { passive: false });
+
         // --- 1. SCENE SETUP ---
         const scene = new THREE.Scene();
         scene.fog = new THREE.Fog(0x111111, 50, 150);
@@ -332,8 +382,47 @@
         }
 
         // --- 4. INSTANTIATION & LEVELS ---
-        player = new Car(0x0066ff, 0, 20, true);
-        cars.push(player);
+        function startGame() {
+            player = new Car(0x0066ff, 0, 20, true);
+            cars.push(player);
+            spawnEnemies(4);
+        }
+
+        function restartGame() {
+            // Clean up scene
+            cars.forEach(c => scene.remove(c.mesh));
+            bullets.forEach(b => scene.remove(b.mesh));
+            powerUps.forEach(p => scene.remove(p.mesh));
+            
+            // Reset arrays
+            cars = [];
+            bullets = [];
+            powerUps = [];
+            
+            // Reset state
+            currentLevel = 1;
+            isTransitioning = false;
+            
+            // Reset keys
+            keys.w = false; keys.a = false; keys.s = false; keys.d = false; keys[' '] = false;
+            updateFireToggleColor();
+            
+            // Reset UI
+            document.getElementById('levelDisp').innerText = "Level: 1";
+            document.getElementById('healthDisp').innerText = "Health: 3";
+            document.getElementById('powerDisp').innerText = "Weapon: Normal";
+            document.getElementById('powerDisp').style.color = "#ffaa00";
+            document.getElementById('gameover').style.display = 'none';
+
+            // Start fresh
+            startGame();
+        }
+
+        // Bind restart button
+        document.getElementById('restartBtn').addEventListener('pointerdown', (e) => {
+            e.stopPropagation(); // Prevents button click from triggering other touch events
+            restartGame();
+        });
 
         function spawnEnemies(amount) {
             const enemyColors = [0xff3333, 0xff8800, 0xcc00ff, 0xaaaaaa];
@@ -369,7 +458,6 @@
                     document.getElementById('levelAlert').style.display = 'none';
                     document.getElementById('levelDisp').innerText = "Level: " + currentLevel;
                     
-                    // Restore health to at least 3
                     if (player.health < 3) {
                         player.health = 3;
                         document.getElementById('healthDisp').innerText = "Health: " + player.health;
@@ -381,7 +469,7 @@
             }
         }
 
-        spawnEnemies(4); 
+        startGame(); 
 
         // --- 5. INPUT & AUTO-FIRE LOGIC ---
 
@@ -559,7 +647,7 @@
                             
                             if (c.isPlayer) {
                                 document.getElementById('gameover').style.display = 'block';
-                                player = null;
+                                // Note: we don't set player = null here anymore so the camera doesn't snap to 0,0
                             }
                         }
                         hit = true;
@@ -575,7 +663,8 @@
 
             checkLevelProgression();
 
-            if (player && player.health > 0) {
+            // Camera Tracking (Follows player even if dead so you don't lose your spot)
+            if (player) {
                 const targetX = player.mesh.position.x;
                 const targetZ = player.mesh.position.z + 30; 
                 camera.position.x += (targetX - camera.position.x) * 0.1;
