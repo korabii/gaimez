@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Three.js Car Arena - Ergonomic Controls</title>
+    <title>Three.js Car Arena - Cruise Control Update</title>
     <style>
         body { 
             margin: 0; 
@@ -63,7 +63,6 @@
         #left-controls { left: 30px; bottom: 10px; }
         #right-controls { right: 30px; bottom: 10px; }
         
-        /* Flexbox layouts for the new button grouping */
         .control-group { display: flex; align-items: flex-end; gap: 20px; }
         .vert-group { display: flex; flex-direction: column; gap: 15px; }
 
@@ -82,6 +81,7 @@
             -webkit-tap-highlight-color: transparent; 
             touch-action: none; 
             cursor: pointer;
+            transition: background 0.1s; /* Smooth color transition for toggles */
         }
         
         #m-space { 
@@ -90,14 +90,14 @@
             background: rgba(255, 50, 50, 0.4); 
             border-color: rgba(255, 50, 50, 0.7); 
             font-size: 20px;
-            margin-bottom: 30px; /* Aligns the fire button with the gap between Up and Down */
+            margin-bottom: 30px; 
         }
     </style>
 </head>
 <body>
 
     <div id="ui">
-        <h2>Arena Drifter</h2>
+        <h2>Dash</h2>
         <div class="stat" id="levelDisp">Level: 1</div>
         <div class="stat" id="healthDisp">Health: 3</div>
         <div class="stat" id="powerDisp" style="color: #ffaa00;">Weapon: Normal</div>
@@ -175,6 +175,8 @@
         let player = null;
         let currentLevel = 1;
         let isTransitioning = false;
+        
+        // Input state
         const keys = { w: false, a: false, s: false, d: false, ' ': false };
 
         const POWER_TYPES = [
@@ -374,38 +376,73 @@
 
         spawnEnemies(4); 
 
-        // --- 5. INPUT & BULLET-PROOF MOBILE CONTROLS ---
+        // --- 5. INPUT & CRUISE CONTROL LOGIC ---
 
+        function updateToggleColors() {
+            const btnW = document.getElementById('m-w');
+            const btnS = document.getElementById('m-s');
+            if (btnW) btnW.style.background = keys.w ? 'rgba(50, 255, 50, 0.5)' : 'rgba(255, 255, 255, 0.2)';
+            if (btnS) btnS.style.background = keys.s ? 'rgba(255, 100, 50, 0.5)' : 'rgba(255, 255, 255, 0.2)';
+        }
+
+        // Desktop Keyboard
         window.addEventListener('keydown', (e) => {
+            if (e.repeat) return; // Ignore holding down the key so it doesn't flicker
             const k = e.key.toLowerCase();
-            if (keys.hasOwnProperty(k)) keys[k] = true;
+            
+            if (k === 'w') {
+                keys.w = !keys.w; // Toggle W
+                if (keys.w) keys.s = false; // Turn off S if W turns on
+                updateToggleColors();
+            } else if (k === 's') {
+                keys.s = !keys.s; // Toggle S
+                if (keys.s) keys.w = false; // Turn off W if S turns on
+                updateToggleColors();
+            } else if (keys.hasOwnProperty(k)) {
+                keys[k] = true;
+            }
         });
 
         window.addEventListener('keyup', (e) => {
             const k = e.key.toLowerCase();
-            if (keys.hasOwnProperty(k)) keys[k] = false;
+            // Don't release W or S on keyup!
+            if (k !== 'w' && k !== 's' && keys.hasOwnProperty(k)) {
+                keys[k] = false;
+            }
         });
 
+        // Mobile Pointer Events
         const touchMap = {
             'm-w': 'w', 'm-a': 'a', 'm-s': 's', 'm-d': 'd', 'm-space': ' '
         };
 
-        // Pointer Events API
         document.querySelectorAll('.m-btn').forEach(btn => {
             
             btn.addEventListener('pointerdown', (e) => {
                 btn.setPointerCapture(e.pointerId); 
                 const key = touchMap[btn.id];
-                if (key) keys[key] = true;
-
-                if (btn.id === 'm-space') btn.style.background = 'rgba(255, 50, 50, 0.8)';
-                else btn.style.background = 'rgba(255, 255, 255, 0.6)';
+                
+                if (key === 'w') {
+                    keys.w = !keys.w;
+                    if (keys.w) keys.s = false;
+                    updateToggleColors();
+                } else if (key === 's') {
+                    keys.s = !keys.s;
+                    if (keys.s) keys.w = false;
+                    updateToggleColors();
+                } else if (key) {
+                    keys[key] = true;
+                    if (btn.id === 'm-space') btn.style.background = 'rgba(255, 50, 50, 0.8)';
+                    else btn.style.background = 'rgba(255, 255, 255, 0.6)';
+                }
             });
 
             const releaseKey = (e) => {
                 const key = touchMap[btn.id];
-                if (key) keys[key] = false;
+                // Ignore pointer release for W and S so they stay locked on!
+                if (key === 'w' || key === 's') return;
 
+                if (key) keys[key] = false;
                 if (btn.id === 'm-space') btn.style.background = 'rgba(255, 50, 50, 0.4)';
                 else btn.style.background = 'rgba(255, 255, 255, 0.2)';
             };
