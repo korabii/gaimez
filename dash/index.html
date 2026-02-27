@@ -2,14 +2,18 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Three.js Car Arena - FFA Levels & Power-Ups</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Three.js Car Arena - Mobile Ready</title>
     <style>
         body { 
             margin: 0; 
             overflow: hidden; 
             background: #111; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            /* Prevent text selection and zoom on mobile */
             user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
         }
         #ui {
             position: absolute;
@@ -21,7 +25,7 @@
             padding: 15px;
             border-radius: 8px;
             border: 1px solid #444;
-            min-width: 200px;
+            min-width: 150px;
         }
         h2, h3, p { margin: 0 0 10px 0; }
         p { color: #aaa; font-size: 14px; }
@@ -32,26 +36,77 @@
             top: 40%;
             width: 100%;
             text-align: center;
-            font-size: 60px;
+            font-size: 50px;
             font-weight: bold;
             text-shadow: 2px 2px 10px #000;
             pointer-events: none;
         }
         #gameover { color: #ff3333; }
         #levelAlert { color: #55ff55; }
+
+        /* --- Mobile Controls UI --- */
+        #mobile-controls {
+            display: none; /* Hidden by default, shown via JS if touch device */
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            pointer-events: none; /* Let touches pass through empty space */
+        }
+        .m-area { position: absolute; bottom: 0; pointer-events: auto; }
+        #left-controls { left: 30px; }
+        #right-controls { right: 30px; bottom: 10px; }
+        
+        .dpad-row { display: flex; justify-content: center; gap: 15px; margin-top: 15px; }
+        .m-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .m-btn:active { background: rgba(255, 255, 255, 0.5); }
+        
+        #m-space { 
+            width: 80px; 
+            height: 80px; 
+            background: rgba(255, 50, 50, 0.3); 
+            border-color: rgba(255, 50, 50, 0.6); 
+        }
+        #m-space:active { background: rgba(255, 50, 50, 0.7); }
     </style>
 </head>
 <body>
 
     <div id="ui">
         <h2>Arena Drifter</h2>
-        <p>WASD to Move | Space to Shoot</p>
         <div class="stat" id="levelDisp">Level: 1</div>
         <div class="stat" id="healthDisp">Health: 3</div>
         <div class="stat" id="powerDisp" style="color: #ffaa00;">Weapon: Normal</div>
     </div>
     <div id="gameover">GAME OVER</div>
     <div id="levelAlert">LEVEL CLEARED!</div>
+
+    <div id="mobile-controls">
+        <div id="left-controls" class="m-area">
+            <div class="dpad-row">
+                <div class="m-btn" id="m-w">W</div>
+            </div>
+            <div class="dpad-row">
+                <div class="m-btn" id="m-a">A</div>
+                <div class="m-btn" id="m-s">S</div>
+                <div class="m-btn" id="m-d">D</div>
+            </div>
+        </div>
+        <div id="right-controls" class="m-area">
+            <div class="m-btn" id="m-space">FIRE</div>
+        </div>
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
@@ -104,6 +159,7 @@
         let player = null;
         let currentLevel = 1;
         let isTransitioning = false;
+        const keys = { w: false, a: false, s: false, d: false, ' ': false }; // Added space key to dictionary
 
         const POWER_TYPES = [
             { id: 'HEALTH', color: 0x00ff00 },
@@ -118,7 +174,6 @@
                 this.health = 3;
                 this.lastShotTime = 0;
                 
-                // Power-up States
                 this.weaponMode = 'normal';
                 this.powerUpEndTime = 0;
                 this.speedBoostEndTime = 0;
@@ -148,7 +203,7 @@
                 this.turnSpeed = 0.06;
             }
 
-            update(keys) {
+            update() {
                 if (this.health <= 0) return;
 
                 const now = Date.now();
@@ -157,6 +212,15 @@
                         this.weaponMode = 'normal';
                         document.getElementById('powerDisp').innerText = "Weapon: Normal";
                         document.getElementById('powerDisp').style.color = "#ffaa00";
+                    }
+                    
+                    // Allow continuous shooting by holding Space or Mobile FIRE button
+                    if (keys[' ']) {
+                        let cooldown = this.weaponMode === 'rapid' ? 100 : 400;
+                        if (now - this.lastShotTime > cooldown) {
+                            fireBullet(this);
+                            this.lastShotTime = now;
+                        }
                     }
                 }
 
@@ -176,11 +240,10 @@
                     if (keys['a']) steering = this.turnSpeed * speedRatio;
                     if (keys['d']) steering = -this.turnSpeed * speedRatio;
                 } else {
-                    // --- SMART FFA AI LOGIC ---
+                    // AI LOGIC
                     let target = null;
                     let minDist = Infinity;
 
-                    // Find the closest alive car (Player or other AI)
                     for (let i = 0; i < cars.length; i++) {
                         let other = cars[i];
                         if (other === this || other.health <= 0) continue;
@@ -216,7 +279,6 @@
                         
                         thrust = currentAccel * (Math.abs(diff) > 0.8 ? 0.4 : 0.7);
 
-                        // Shoot at whatever target is in front of them
                         if (!isEvadingWall && target && minDist < 35 && Math.abs(diff) < 0.25) {
                             if (now - this.lastShotTime > 1000 + Math.random() * 500) {
                                 fireBullet(this);
@@ -298,20 +360,12 @@
 
         spawnEnemies(4); 
 
-        // --- 5. INPUT & SHOOTING ---
-        const keys = { w: false, a: false, s: false, d: false };
+        // --- 5. INPUT & MOBILE CONTROLS ---
 
+        // Desktop Keyboard
         window.addEventListener('keydown', (e) => {
             const k = e.key.toLowerCase();
             if (keys.hasOwnProperty(k)) keys[k] = true;
-            
-            if (k === ' ' && player && player.health > 0) {
-                let cooldown = player.weaponMode === 'rapid' ? 100 : 400;
-                if (Date.now() - player.lastShotTime > cooldown) {
-                    fireBullet(player);
-                    player.lastShotTime = Date.now();
-                }
-            }
         });
 
         window.addEventListener('keyup', (e) => {
@@ -319,6 +373,37 @@
             if (keys.hasOwnProperty(k)) keys[k] = false;
         });
 
+        // Mobile Touch Device Detection & Assignment
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        if (isTouchDevice) {
+            document.getElementById('mobile-controls').style.display = 'block';
+
+            const touchMap = {
+                'm-w': 'w', 'm-a': 'a', 'm-s': 's', 'm-d': 'd', 'm-space': ' '
+            };
+
+            document.querySelectorAll('.m-btn').forEach(btn => {
+                btn.addEventListener('touchstart', (e) => {
+                    e.preventDefault(); // Stop screen dragging
+                    const key = touchMap[btn.id];
+                    if (key) keys[key] = true;
+                }, {passive: false});
+
+                btn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    const key = touchMap[btn.id];
+                    if (key) keys[key] = false;
+                }, {passive: false});
+
+                btn.addEventListener('touchcancel', (e) => {
+                    e.preventDefault();
+                    const key = touchMap[btn.id];
+                    if (key) keys[key] = false;
+                }, {passive: false});
+            });
+        }
+
+        // --- SHOOTING LOGIC ---
         function createBulletMesh(owner) {
             let bGeom = new THREE.SphereGeometry(0.4);
             let bMat = new THREE.MeshBasicMaterial({ color: owner.isPlayer ? 0x00ffff : 0xffaaaa });
@@ -353,7 +438,7 @@
             requestAnimationFrame(animate);
             const now = Date.now();
 
-            cars.forEach(car => car.update(keys));
+            cars.forEach(car => car.update());
 
             for (let i = powerUps.length - 1; i >= 0; i--) {
                 let p = powerUps[i];
