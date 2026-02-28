@@ -78,7 +78,6 @@
             color: white;
             box-sizing: border-box;
         }
-        /* Style for the datalist dropdown arrow in webkit */
         input::-webkit-calendar-picker-indicator {
             filter: invert(1);
             opacity: 0.5;
@@ -140,7 +139,6 @@
         }
         .delete-btn:hover { color: #ff7961; transform: scale(1.2); opacity: 1; }
         
-        /* Queue Item States */
         .queue-item.active {
             background-color: #333;
             border-left: 4px solid #4caf50;
@@ -203,15 +201,16 @@
             <datalist id="commonExercises">
                 <option value="Pushups">
                 <option value="Sit-ups">
-                <option value="Crunches">
                 <option value="Squats">
                 <option value="Planks">
                 <option value="Lunges">
+                <option value="Burpees">
                 <option value="Jumping Jacks">
                 <option value="Mountain Climbers">
                 <option value="Pull-ups">
                 <option value="High Knees">
-                >
+                <option value="Bicycle Crunches">
+                <option value="Rest">
             </datalist>
 
             <div class="form-row">
@@ -324,36 +323,35 @@
 
         if (workoutQueue.length === 1 && !isRunning && !isPaused) {
             setupExerciseState(0);
+        } else if (isRunning && currentQueueIndex === workoutQueue.length - 2) {
+            // If timer is running and we just added an item after the current "last" item,
+            // we need to recalculate the progress bar for the active item.
+            recalcTotalItemTime();
         }
     });
 
-    // Make deleteItem globally accessible to the inline HTML onclick handlers
     window.deleteItem = function(index) {
-        // Remove item from array
         workoutQueue.splice(index, 1);
         
-        // Adjust indices if necessary to keep timer stable
         if (index < currentQueueIndex) {
-            // Deleted something before the active item, shift our tracker back
             currentQueueIndex--;
         } else if (index === currentQueueIndex) {
-            // We deleted the currently active item! Stop the timer.
             isRunning = false;
             isPaused = false;
             cancelAnimationFrame(animationFrameId);
             
             if (workoutQueue.length > 0) {
-                // If there are still items, clamp index to length and set up next
                 if (currentQueueIndex >= workoutQueue.length) {
                     currentQueueIndex = workoutQueue.length - 1;
                 }
                 setupExerciseState(currentQueueIndex);
             } else {
-                // Queue is completely empty
                 resetToEmpty();
             }
+        } else {
+            // Recalculate if deleting an item affects the "last item" status of the current item
+            recalcTotalItemTime();
         }
-        
         renderQueue();
     };
 
@@ -411,6 +409,15 @@
         currentQueueIndex = 0;
     }
 
+    function recalcTotalItemTime() {
+        if (workoutQueue.length === 0 || currentQueueIndex >= workoutQueue.length) return;
+        const item = workoutQueue[currentQueueIndex];
+        const isLastItem = (currentQueueIndex === workoutQueue.length - 1);
+        // Include the rest period if there's another exercise coming up
+        totalItemTime = (item.ex * item.rounds) + (item.rest * (isLastItem ? item.rounds - 1 : item.rounds));
+        if (totalItemTime <= 0) totalItemTime = 1; 
+    }
+
     function setupExerciseState(index) {
         const item = workoutQueue[index];
         currentExerciseName.textContent = item.name;
@@ -426,8 +433,7 @@
         timeRemaining = item.ex;
         initialTime = timeRemaining;
         
-        totalItemTime = (item.ex * item.rounds) + (item.rest * (item.rounds - 1));
-        if (totalItemTime <= 0) totalItemTime = 1; 
+        recalcTotalItemTime();
         itemElapsed = 0;
         
         updateDisplay(timeRemaining);
@@ -442,17 +448,13 @@
             roundsLeft--;
             roundsLeftDisplay.textContent = roundsLeft;
 
-            if (roundsLeft <= 0) {
-                currentQueueIndex++;
-                if (currentQueueIndex >= workoutQueue.length) {
-                    finishWorkout();
-                } else {
-                    setupExerciseState(currentQueueIndex);
-                    targetTime = Date.now() + (timeRemaining * 1000);
-                }
+            // If it's the very last round of the VERY LAST exercise in the entire workout
+            if (roundsLeft <= 0 && currentQueueIndex >= workoutQueue.length - 1) {
+                finishWorkout();
                 return;
             }
 
+            // Otherwise, we ALWAYS go to a rest period here (even between different exercises)
             currentMode = 'rest';
             statusDisplay.textContent = 'REST';
             statusDisplay.style.color = '#ff9800';
@@ -461,16 +463,24 @@
             initialTime = timeRemaining;
             
             if (timeRemaining <= 0) {
-                switchMode();
+                switchMode(); // Skip if rest is 0
                 return;
             }
         } else {
-            currentMode = 'exercise';
-            statusDisplay.textContent = 'EXERCISE';
-            statusDisplay.style.color = '#4caf50';
-            circle.style.stroke = '#4caf50';
-            timeRemaining = currentItem.ex;
-            initialTime = timeRemaining;
+            // Coming out of a rest period
+            if (roundsLeft <= 0) {
+                // The rest we just finished was the transition to the next exercise in the list
+                currentQueueIndex++;
+                setupExerciseState(currentQueueIndex);
+            } else {
+                // Start the next round of the CURRENT exercise
+                currentMode = 'exercise';
+                statusDisplay.textContent = 'EXERCISE';
+                statusDisplay.style.color = '#4caf50';
+                circle.style.stroke = '#4caf50';
+                timeRemaining = currentItem.ex;
+                initialTime = timeRemaining;
+            }
         }
         
         targetTime = Date.now() + (timeRemaining * 1000);
@@ -488,6 +498,11 @@
         
         updateDisplay(0);
         setProgress(0); 
+        
+        // Push the underline bar to 100% manually
+        const activeProgressEl = document.getElementById(`progress-${currentQueueIndex}`);
+        if (activeProgressEl) activeProgressEl.style.width = `100%`;
+        
         renderQueue();
     }
 
@@ -525,7 +540,6 @@
         }
     }
 
-    // Button Controls
     document.getElementById('startBtn').addEventListener('click', () => {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         if (isRunning) return; 
