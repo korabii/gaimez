@@ -3,51 +3,169 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exercise Timer</title>
+    <title>Advanced Routine Timer</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #121212;
             color: #ffffff;
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
         }
-        .container {
+        
+        /* Layout */
+        .app-container {
+            display: flex;
+            gap: 30px;
+            max-width: 900px;
+            width: 100%;
+            align-items: flex-start;
+        }
+        .panel {
             background-color: #1e1e1e;
             padding: 30px;
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            text-align: center;
-            max-width: 400px;
-            width: 100%;
+            box-sizing: border-box;
         }
-        .inputs {
+        .playlist-panel {
+            flex: 1;
             display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
+            flex-direction: column;
+            max-height: 80vh;
         }
-        .input-group {
+        .timer-panel {
+            flex: 1;
+            text-align: center;
             display: flex;
             flex-direction: column;
             align-items: center;
         }
-        input[type="number"] {
-            width: 60px;
-            padding: 5px;
+
+        /* Form Inputs */
+        .add-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #333;
+        }
+        .form-row {
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            flex: 1;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
             margin-top: 5px;
             border: none;
             border-radius: 4px;
-            text-align: center;
-            font-size: 16px;
+            font-size: 14px;
             background-color: #2d2d2d;
             color: white;
+            box-sizing: border-box;
+        }
+        /* Style for the datalist dropdown arrow in webkit */
+        input::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            opacity: 0.5;
+            cursor: pointer;
         }
         
-        /* New Styles for the Circular Progress Bar */
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        button:hover { opacity: 0.8; }
+        button:active { transform: scale(0.98); }
+        #addBtn { background-color: #2196f3; color: white; width: 100%; margin-top: 5px; }
+
+        /* Playlist Styles */
+        .playlist-header { margin-top: 0; margin-bottom: 15px; }
+        .playlist-container {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        .playlist-container::-webkit-scrollbar { width: 8px; }
+        .playlist-container::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        
+        .queue-item {
+            background-color: #2d2d2d;
+            border-radius: 6px;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        .queue-item-content {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        .queue-item-title { font-weight: bold; font-size: 16px; margin-bottom: 4px; }
+        .queue-item-stats { font-size: 12px; color: #aaa; }
+        
+        .delete-btn {
+            background: none;
+            border: none;
+            padding: 5px;
+            margin-left: 10px;
+            color: #f44336;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, color 0.2s;
+        }
+        .delete-btn:hover { color: #ff7961; transform: scale(1.2); opacity: 1; }
+        
+        /* Queue Item States */
+        .queue-item.active {
+            background-color: #333;
+            border-left: 4px solid #4caf50;
+        }
+        .queue-item.completed {
+            background-color: rgba(76, 175, 80, 0.1);
+            border-left: 4px solid #4caf50;
+            color: #888;
+        }
+        .queue-item.completed .queue-item-stats { color: #666; }
+        
+        .item-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 4px;
+            background-color: #4caf50;
+            width: 0%; 
+            transition: width 0.1s linear;
+        }
+
+        /* Timer Styles */
+        #currentExerciseName { margin: 0 0 10px 0; color: #fff; min-height: 28px; }
+        #statusDisplay { font-size: 24px; text-transform: uppercase; letter-spacing: 2px; color: #4caf50; margin-bottom: 10px; }
+        
         .timer-wrapper {
             position: relative;
             width: 240px;
@@ -57,114 +175,118 @@
             align-items: center;
             justify-content: center;
         }
-        .progress-ring {
-            position: absolute;
-            top: 0;
-            left: 0;
-            transform: rotate(-90deg); /* Starts the circle at the top (12 o'clock) */
-        }
-        .progress-ring__track {
-            stroke: rgba(255, 255, 255, 0.1);
-        }
-        .progress-ring__circle {
-            transition: stroke 0.3s ease; /* Smooth color transition between modes */
-        }
+        .progress-ring { position: absolute; top: 0; left: 0; transform: rotate(-90deg); }
+        .progress-ring__track { stroke: rgba(255, 255, 255, 0.1); }
+        .progress-ring__circle { transition: stroke 0.3s ease; }
         
-        #timerDisplay {
-            font-size: 60px;
-            font-variant-numeric: tabular-nums; 
-            font-weight: bold;
-            z-index: 1; /* Keeps text above the SVG */
-        }
-        #statusDisplay {
-            font-size: 24px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: #4caf50;
-            margin-bottom: 10px;
-        }
-        .controls {
-            margin-top: 20px;
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: opacity 0.2s;
-        }
-        button:hover { opacity: 0.8; }
+        #timerDisplay { font-size: 60px; font-variant-numeric: tabular-nums; font-weight: bold; z-index: 1; }
+        .controls { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
         #startBtn { background-color: #4caf50; color: white; }
         #stopBtn { background-color: #ff9800; color: white; }
         #resetBtn { background-color: #f44336; color: white; }
+
+        @media (max-width: 768px) {
+            .app-container { flex-direction: column-reverse; align-items: center; }
+            .playlist-panel, .timer-panel { width: 100%; max-width: 100%; }
+            .playlist-panel { max-height: none; }
+        }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>Interval Timer</h2>
+<div class="app-container">
     
-    <div class="inputs">
-        <div class="input-group">
-            <label>Exercise</label>
-            <input type="number" id="exInput" value="30" min="1">
+    <div class="panel playlist-panel">
+        <h3 class="playlist-header">Add Exercise</h3>
+        <div class="add-form">
+            <input type="text" id="nameInput" list="commonExercises" placeholder="Exercise Name (Type to search...)" autocomplete="off">
+            <datalist id="commonExercises">
+                <option value="Pushups">
+                <option value="Sit-ups">
+                <option value="Crunches">
+                <option value="Squats">
+                <option value="Planks">
+                <option value="Lunges">
+                <option value="Jumping Jacks">
+                <option value="Mountain Climbers">
+                <option value="Pull-ups">
+                <option value="High Knees">
+                >
+            </datalist>
+
+            <div class="form-row">
+                <div class="input-group">
+                    <label>Exercise (s)</label>
+                    <input type="number" id="exInput" value="30" min="1">
+                </div>
+                <div class="input-group">
+                    <label>Rest (s)</label>
+                    <input type="number" id="restInput" value="10" min="0">
+                </div>
+                <div class="input-group">
+                    <label>Rounds</label>
+                    <input type="number" id="roundsInput" value="3" min="1">
+                </div>
+            </div>
+            <button id="addBtn">Add to List</button>
         </div>
-        <div class="input-group">
-            <label>Rest</label>
-            <input type="number" id="restInput" value="10" min="0">
+
+        <h3 class="playlist-header">Up Next</h3>
+        <div class="playlist-container" id="playlistContainer">
+            </div>
+    </div>
+
+    <div class="panel timer-panel">
+        <h2 id="currentExerciseName">Waiting to start...</h2>
+        <div id="statusDisplay">READY</div>
+        
+        <div class="timer-wrapper">
+            <svg class="progress-ring" width="240" height="240">
+                <circle class="progress-ring__track" stroke-width="8" fill="transparent" r="110" cx="120" cy="120"/>
+                <circle class="progress-ring__circle" stroke="#4caf50" stroke-width="8" stroke-linecap="round" fill="transparent" r="110" cx="120" cy="120"/>
+            </svg>
+            <div id="timerDisplay">0.00</div>
         </div>
-        <div class="input-group">
-            <label>Rounds</label>
-            <input type="number" id="roundsInput" value="3" min="1">
+
+        <div>Rounds Left: <span id="roundsLeftDisplay">0</span></div>
+
+        <div class="controls">
+            <button id="startBtn">Start</button>
+            <button id="stopBtn">Pause</button>
+            <button id="resetBtn">Restart List</button>
         </div>
     </div>
 
-    <div id="statusDisplay">READY</div>
-    
-    <div class="timer-wrapper">
-        <svg class="progress-ring" width="240" height="240">
-            <circle class="progress-ring__track" stroke-width="8" fill="transparent" r="110" cx="120" cy="120"/>
-            <circle class="progress-ring__circle" stroke="#4caf50" stroke-width="8" stroke-linecap="round" fill="transparent" r="110" cx="120" cy="120"/>
-        </svg>
-        <div id="timerDisplay">0.00</div>
-    </div>
-
-    <div>Rounds Left: <span id="roundsLeftDisplay">0</span></div>
-
-    <div class="controls">
-        <button id="startBtn">Start</button>
-        <button id="stopBtn">Stop</button>
-        <button id="resetBtn">Reset</button>
-    </div>
 </div>
 
 <script>
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
+    const nameInput = document.getElementById('nameInput');
     const exInput = document.getElementById('exInput');
     const restInput = document.getElementById('restInput');
     const roundsInput = document.getElementById('roundsInput');
+    const addBtn = document.getElementById('addBtn');
+    const playlistContainer = document.getElementById('playlistContainer');
+    
+    const currentExerciseName = document.getElementById('currentExerciseName');
     const timerDisplay = document.getElementById('timerDisplay');
     const statusDisplay = document.getElementById('statusDisplay');
     const roundsLeftDisplay = document.getElementById('roundsLeftDisplay');
     
-    // SVG Circle setup
     const circle = document.querySelector('.progress-ring__circle');
     const radius = circle.r.baseVal.value;
     const circumference = radius * 2 * Math.PI;
-    
     circle.style.strokeDasharray = `${circumference} ${circumference}`;
-    circle.style.strokeDashoffset = circumference; // Start empty or full depending on logic
+    circle.style.strokeDashoffset = circumference;
 
+    let workoutQueue = [];
+    let currentQueueIndex = 0;
+    
     let animationFrameId;
     let targetTime;
     let timeRemaining;
-    let initialTime; // Needed to calculate the progress percentage
+    let initialTime; 
     let isRunning = false;
     let isPaused = false;
     
@@ -172,49 +294,170 @@
     let roundsLeft;
     let lastBeepSecond = -1;
 
+    let totalItemTime = 0; 
+    let itemElapsed = 0; 
+    let lastTickTime = 0;
+
     function playBeep(frequency = 800, duration = 0.3) {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         const oscillator = audioCtx.createOscillator();
         const gainNode = audioCtx.createGain();
-        
         oscillator.type = 'sine';
         oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime); 
-        
         gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-        
         oscillator.connect(gainNode);
         gainNode.connect(audioCtx.destination);
-        
         oscillator.start();
         oscillator.stop(audioCtx.currentTime + duration);
     }
 
+    addBtn.addEventListener('click', () => {
+        const name = nameInput.value.trim() || `Exercise ${workoutQueue.length + 1}`;
+        const ex = parseFloat(exInput.value);
+        const rest = parseFloat(restInput.value);
+        const rounds = parseInt(roundsInput.value);
+
+        workoutQueue.push({ name, ex, rest, rounds });
+        nameInput.value = ''; 
+        renderQueue();
+
+        if (workoutQueue.length === 1 && !isRunning && !isPaused) {
+            setupExerciseState(0);
+        }
+    });
+
+    // Make deleteItem globally accessible to the inline HTML onclick handlers
+    window.deleteItem = function(index) {
+        // Remove item from array
+        workoutQueue.splice(index, 1);
+        
+        // Adjust indices if necessary to keep timer stable
+        if (index < currentQueueIndex) {
+            // Deleted something before the active item, shift our tracker back
+            currentQueueIndex--;
+        } else if (index === currentQueueIndex) {
+            // We deleted the currently active item! Stop the timer.
+            isRunning = false;
+            isPaused = false;
+            cancelAnimationFrame(animationFrameId);
+            
+            if (workoutQueue.length > 0) {
+                // If there are still items, clamp index to length and set up next
+                if (currentQueueIndex >= workoutQueue.length) {
+                    currentQueueIndex = workoutQueue.length - 1;
+                }
+                setupExerciseState(currentQueueIndex);
+            } else {
+                // Queue is completely empty
+                resetToEmpty();
+            }
+        }
+        
+        renderQueue();
+    };
+
+    function renderQueue() {
+        playlistContainer.innerHTML = '';
+        
+        if (workoutQueue.length === 0) {
+            playlistContainer.innerHTML = '<div style="color: #777; text-align: center; margin-top: 20px;">List is empty. Add exercises above.</div>';
+            return;
+        }
+
+        workoutQueue.forEach((item, index) => {
+            const div = document.createElement('div');
+            div.className = 'queue-item';
+            
+            if (index < currentQueueIndex) {
+                div.classList.add('completed');
+            } else if (index === currentQueueIndex && (isRunning || isPaused || currentQueueIndex > 0)) {
+                div.classList.add('active');
+            }
+
+            div.innerHTML = `
+                <div class="queue-item-content">
+                    <div class="queue-item-title">${index + 1}. ${item.name}</div>
+                    <div class="queue-item-stats">Exercise: ${item.ex}s | Rest: ${item.rest}s | Rounds: ${item.rounds}</div>
+                </div>
+                <button class="delete-btn" onclick="deleteItem(${index})" title="Delete Exercise">❌</button>
+                <div class="item-progress" id="progress-${index}"></div>
+            `;
+            playlistContainer.appendChild(div);
+        });
+    }
+
     function setProgress(percent) {
-        // Calculate how much of the stroke to hide based on the percentage left
         const offset = circumference - (percent * circumference);
         circle.style.strokeDashoffset = offset;
     }
 
     function updateDisplay(time) {
         timerDisplay.textContent = Math.max(0, time).toFixed(2);
-        
-        // Update the circular progress bar
         if (initialTime > 0) {
             const percent = Math.max(0, time) / initialTime;
             setProgress(percent);
         }
     }
 
+    function resetToEmpty() {
+        currentExerciseName.textContent = "Waiting to start...";
+        statusDisplay.textContent = 'READY';
+        statusDisplay.style.color = '#ffffff';
+        circle.style.stroke = '#4caf50';
+        roundsLeftDisplay.textContent = '0';
+        updateDisplay(0);
+        setProgress(1);
+        currentQueueIndex = 0;
+    }
+
+    function setupExerciseState(index) {
+        const item = workoutQueue[index];
+        currentExerciseName.textContent = item.name;
+        
+        roundsLeft = item.rounds;
+        roundsLeftDisplay.textContent = roundsLeft;
+        
+        currentMode = 'exercise';
+        statusDisplay.textContent = 'EXERCISE';
+        statusDisplay.style.color = '#4caf50';
+        circle.style.stroke = '#4caf50';
+        
+        timeRemaining = item.ex;
+        initialTime = timeRemaining;
+        
+        totalItemTime = (item.ex * item.rounds) + (item.rest * (item.rounds - 1));
+        if (totalItemTime <= 0) totalItemTime = 1; 
+        itemElapsed = 0;
+        
+        updateDisplay(timeRemaining);
+        renderQueue();
+    }
+
     function switchMode() {
         lastBeepSecond = -1; 
+        const currentItem = workoutQueue[currentQueueIndex];
         
         if (currentMode === 'exercise') {
+            roundsLeft--;
+            roundsLeftDisplay.textContent = roundsLeft;
+
+            if (roundsLeft <= 0) {
+                currentQueueIndex++;
+                if (currentQueueIndex >= workoutQueue.length) {
+                    finishWorkout();
+                } else {
+                    setupExerciseState(currentQueueIndex);
+                    targetTime = Date.now() + (timeRemaining * 1000);
+                }
+                return;
+            }
+
             currentMode = 'rest';
             statusDisplay.textContent = 'REST';
             statusDisplay.style.color = '#ff9800';
-            circle.style.stroke = '#ff9800'; // Change circle color to orange
-            timeRemaining = parseFloat(restInput.value);
+            circle.style.stroke = '#ff9800';
+            timeRemaining = currentItem.rest;
             initialTime = timeRemaining;
             
             if (timeRemaining <= 0) {
@@ -225,15 +468,8 @@
             currentMode = 'exercise';
             statusDisplay.textContent = 'EXERCISE';
             statusDisplay.style.color = '#4caf50';
-            circle.style.stroke = '#4caf50'; // Change circle color back to green
-            roundsLeft--;
-            roundsLeftDisplay.textContent = roundsLeft;
-            
-            if (roundsLeft <= 0) {
-                finishWorkout();
-                return;
-            }
-            timeRemaining = parseFloat(exInput.value);
+            circle.style.stroke = '#4caf50';
+            timeRemaining = currentItem.ex;
             initialTime = timeRemaining;
         }
         
@@ -242,12 +478,17 @@
 
     function finishWorkout() {
         isRunning = false;
+        isPaused = false;
         cancelAnimationFrame(animationFrameId);
+        
+        currentExerciseName.textContent = "Workout Complete!";
         statusDisplay.textContent = 'DONE!';
         statusDisplay.style.color = '#2196f3';
         circle.style.stroke = '#2196f3';
+        
         updateDisplay(0);
-        setProgress(0); // Empty the circle completely
+        setProgress(0); 
+        renderQueue();
     }
 
     function tick() {
@@ -255,9 +496,19 @@
 
         const now = Date.now();
         timeRemaining = (targetTime - now) / 1000;
+        
+        const delta = (now - lastTickTime) / 1000;
+        lastTickTime = now;
+        itemElapsed += delta;
+
+        const activeProgressEl = document.getElementById(`progress-${currentQueueIndex}`);
+        if (activeProgressEl) {
+            const percentCompleted = Math.min(100, (itemElapsed / totalItemTime) * 100);
+            activeProgressEl.style.width = `${percentCompleted}%`;
+        }
 
         if (timeRemaining <= 0) {
-            playBeep(1200, 0.6);
+            playBeep(1200, 0.6); 
             switchMode();
         } else {
             updateDisplay(timeRemaining);
@@ -274,24 +525,21 @@
         }
     }
 
+    // Button Controls
     document.getElementById('startBtn').addEventListener('click', () => {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         if (isRunning) return; 
+        if (workoutQueue.length === 0) {
+            alert("Please add at least one exercise to the list first.");
+            return;
+        }
         
-        if (!isPaused) {
-            roundsLeft = parseInt(roundsInput.value);
-            roundsLeftDisplay.textContent = roundsLeft;
-            currentMode = 'exercise';
-            statusDisplay.textContent = 'EXERCISE';
-            statusDisplay.style.color = '#4caf50';
-            circle.style.stroke = '#4caf50';
-            
-            timeRemaining = parseFloat(exInput.value);
-            initialTime = timeRemaining;
-            lastBeepSecond = -1;
+        if (!isPaused && currentQueueIndex === 0 && document.getElementById('statusDisplay').textContent !== 'EXERCISE') {
+            setupExerciseState(0);
         }
         
         targetTime = Date.now() + (timeRemaining * 1000);
+        lastTickTime = Date.now();
         isRunning = true;
         isPaused = false;
         tick();
@@ -313,23 +561,18 @@
         isRunning = false;
         isPaused = false;
         cancelAnimationFrame(animationFrameId);
-        
-        statusDisplay.textContent = 'READY';
-        statusDisplay.style.color = '#ffffff';
-        circle.style.stroke = '#4caf50';
-        roundsLeftDisplay.textContent = '0';
-        
-        initialTime = parseFloat(exInput.value);
-        updateDisplay(initialTime);
-        setProgress(1); // Set the circle to full visually
-        
         lastBeepSecond = -1;
+
+        if (workoutQueue.length > 0) {
+            currentQueueIndex = 0;
+            setupExerciseState(0);
+            statusDisplay.textContent = 'READY';
+        } else {
+            resetToEmpty();
+        }
     });
 
-    // Initialize display with a full circle
-    initialTime = parseFloat(exInput.value);
-    updateDisplay(initialTime);
-    setProgress(1);
+    renderQueue();
 </script>
 
 </body>
