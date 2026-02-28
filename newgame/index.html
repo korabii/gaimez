@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exercise Timer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: #1e1e1e;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+        .inputs {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        input[type="number"] {
+            width: 60px;
+            padding: 5px;
+            margin-top: 5px;
+            border: none;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 16px;
+            background-color: #2d2d2d;
+            color: white;
+        }
+        
+        /* New Styles for the Circular Progress Bar */
+        .timer-wrapper {
+            position: relative;
+            width: 240px;
+            height: 240px;
+            margin: 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .progress-ring {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform: rotate(-90deg); /* Starts the circle at the top (12 o'clock) */
+        }
+        .progress-ring__track {
+            stroke: rgba(255, 255, 255, 0.1);
+        }
+        .progress-ring__circle {
+            transition: stroke 0.3s ease; /* Smooth color transition between modes */
+        }
+        
+        #timerDisplay {
+            font-size: 60px;
+            font-variant-numeric: tabular-nums; 
+            font-weight: bold;
+            z-index: 1; /* Keeps text above the SVG */
+        }
+        #statusDisplay {
+            font-size: 24px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #4caf50;
+            margin-bottom: 10px;
+        }
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.8; }
+        #startBtn { background-color: #4caf50; color: white; }
+        #stopBtn { background-color: #ff9800; color: white; }
+        #resetBtn { background-color: #f44336; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Interval Timer</h2>
+    
+    <div class="inputs">
+        <div class="input-group">
+            <label>Exercise</label>
+            <input type="number" id="exInput" value="30" min="1">
+        </div>
+        <div class="input-group">
+            <label>Rest</label>
+            <input type="number" id="restInput" value="10" min="0">
+        </div>
+        <div class="input-group">
+            <label>Rounds</label>
+            <input type="number" id="roundsInput" value="3" min="1">
+        </div>
+    </div>
+
+    <div id="statusDisplay">READY</div>
+    
+    <div class="timer-wrapper">
+        <svg class="progress-ring" width="240" height="240">
+            <circle class="progress-ring__track" stroke-width="8" fill="transparent" r="110" cx="120" cy="120"/>
+            <circle class="progress-ring__circle" stroke="#4caf50" stroke-width="8" stroke-linecap="round" fill="transparent" r="110" cx="120" cy="120"/>
+        </svg>
+        <div id="timerDisplay">0.00</div>
+    </div>
+
+    <div>Rounds Left: <span id="roundsLeftDisplay">0</span></div>
+
+    <div class="controls">
+        <button id="startBtn">Start</button>
+        <button id="stopBtn">Stop</button>
+        <button id="resetBtn">Reset</button>
+    </div>
+</div>
+
+<script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    const exInput = document.getElementById('exInput');
+    const restInput = document.getElementById('restInput');
+    const roundsInput = document.getElementById('roundsInput');
+    const timerDisplay = document.getElementById('timerDisplay');
+    const statusDisplay = document.getElementById('statusDisplay');
+    const roundsLeftDisplay = document.getElementById('roundsLeftDisplay');
+    
+    // SVG Circle setup
+    const circle = document.querySelector('.progress-ring__circle');
+    const radius = circle.r.baseVal.value;
+    const circumference = radius * 2 * Math.PI;
+    
+    circle.style.strokeDasharray = `${circumference} ${circumference}`;
+    circle.style.strokeDashoffset = circumference; // Start empty or full depending on logic
+
+    let animationFrameId;
+    let targetTime;
+    let timeRemaining;
+    let initialTime; // Needed to calculate the progress percentage
+    let isRunning = false;
+    let isPaused = false;
+    
+    let currentMode = 'exercise'; 
+    let roundsLeft;
+    let lastBeepSecond = -1;
+
+    function playBeep(frequency = 800, duration = 0.3) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime); 
+        
+        gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + duration);
+    }
+
+    function setProgress(percent) {
+        // Calculate how much of the stroke to hide based on the percentage left
+        const offset = circumference - (percent * circumference);
+        circle.style.strokeDashoffset = offset;
+    }
+
+    function updateDisplay(time) {
+        timerDisplay.textContent = Math.max(0, time).toFixed(2);
+        
+        // Update the circular progress bar
+        if (initialTime > 0) {
+            const percent = Math.max(0, time) / initialTime;
+            setProgress(percent);
+        }
+    }
+
+    function switchMode() {
+        lastBeepSecond = -1; 
+        
+        if (currentMode === 'exercise') {
+            currentMode = 'rest';
+            statusDisplay.textContent = 'REST';
+            statusDisplay.style.color = '#ff9800';
+            circle.style.stroke = '#ff9800'; // Change circle color to orange
+            timeRemaining = parseFloat(restInput.value);
+            initialTime = timeRemaining;
+            
+            if (timeRemaining <= 0) {
+                switchMode();
+                return;
+            }
+        } else {
+            currentMode = 'exercise';
+            statusDisplay.textContent = 'EXERCISE';
+            statusDisplay.style.color = '#4caf50';
+            circle.style.stroke = '#4caf50'; // Change circle color back to green
+            roundsLeft--;
+            roundsLeftDisplay.textContent = roundsLeft;
+            
+            if (roundsLeft <= 0) {
+                finishWorkout();
+                return;
+            }
+            timeRemaining = parseFloat(exInput.value);
+            initialTime = timeRemaining;
+        }
+        
+        targetTime = Date.now() + (timeRemaining * 1000);
+    }
+
+    function finishWorkout() {
+        isRunning = false;
+        cancelAnimationFrame(animationFrameId);
+        statusDisplay.textContent = 'DONE!';
+        statusDisplay.style.color = '#2196f3';
+        circle.style.stroke = '#2196f3';
+        updateDisplay(0);
+        setProgress(0); // Empty the circle completely
+    }
+
+    function tick() {
+        if (!isRunning) return;
+
+        const now = Date.now();
+        timeRemaining = (targetTime - now) / 1000;
+
+        if (timeRemaining <= 0) {
+            playBeep(1200, 0.6);
+            switchMode();
+        } else {
+            updateDisplay(timeRemaining);
+
+            const currentSecond = Math.ceil(timeRemaining);
+            if (currentSecond <= 3 && currentSecond > 0 && currentSecond !== lastBeepSecond) {
+                playBeep(800, 0.3); 
+                lastBeepSecond = currentSecond;
+            }
+        }
+
+        if (isRunning) {
+            animationFrameId = requestAnimationFrame(tick);
+        }
+    }
+
+    document.getElementById('startBtn').addEventListener('click', () => {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        if (isRunning) return; 
+        
+        if (!isPaused) {
+            roundsLeft = parseInt(roundsInput.value);
+            roundsLeftDisplay.textContent = roundsLeft;
+            currentMode = 'exercise';
+            statusDisplay.textContent = 'EXERCISE';
+            statusDisplay.style.color = '#4caf50';
+            circle.style.stroke = '#4caf50';
+            
+            timeRemaining = parseFloat(exInput.value);
+            initialTime = timeRemaining;
+            lastBeepSecond = -1;
+        }
+        
+        targetTime = Date.now() + (timeRemaining * 1000);
+        isRunning = true;
+        isPaused = false;
+        tick();
+    });
+
+    document.getElementById('stopBtn').addEventListener('click', () => {
+        if (isRunning) {
+            isRunning = false;
+            isPaused = true;
+            cancelAnimationFrame(animationFrameId);
+            timeRemaining = (targetTime - Date.now()) / 1000;
+            statusDisplay.textContent = 'PAUSED';
+            statusDisplay.style.color = '#f44336';
+            circle.style.stroke = '#f44336';
+        }
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+        isRunning = false;
+        isPaused = false;
+        cancelAnimationFrame(animationFrameId);
+        
+        statusDisplay.textContent = 'READY';
+        statusDisplay.style.color = '#ffffff';
+        circle.style.stroke = '#4caf50';
+        roundsLeftDisplay.textContent = '0';
+        
+        initialTime = parseFloat(exInput.value);
+        updateDisplay(initialTime);
+        setProgress(1); // Set the circle to full visually
+        
+        lastBeepSecond = -1;
+    });
+
+    // Initialize display with a full circle
+    initialTime = parseFloat(exInput.value);
+    updateDisplay(initialTime);
+    setProgress(1);
+</script>
+
+</body>
+</html>
