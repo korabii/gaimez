@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Three.js Car Arena - Restart & Anti-Zoom</title>
+    <title>Three.js Car Arena - Analog Steering</title>
     <style>
         body { 
             margin: 0; 
@@ -12,7 +12,7 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none; /* Helps prevent swipe-to-scroll and pinch-zoom */
+            touch-action: none; 
         }
         #ui {
             position: absolute;
@@ -43,15 +43,8 @@
             z-index: 20;
         }
         
-        #gameover { 
-            color: #ff3333; 
-            pointer-events: auto; /* Allows us to click the restart button */
-        }
-        
-        #levelAlert { 
-            color: #55ff55; 
-            pointer-events: none;
-        }
+        #gameover { color: #ff3333; pointer-events: auto; }
+        #levelAlert { color: #55ff55; pointer-events: none; }
 
         #restartBtn {
             margin-top: 20px;
@@ -67,10 +60,7 @@
             box-shadow: 0px 4px 10px rgba(0,0,0,0.5);
             -webkit-tap-highlight-color: transparent;
         }
-        #restartBtn:active {
-            background: #cc0000;
-            transform: scale(0.95);
-        }
+        #restartBtn:active { background: #cc0000; transform: scale(0.95); }
 
         /* --- Mobile Controls UI --- */
         #mobile-controls {
@@ -87,7 +77,7 @@
         }
 
         .m-area { position: absolute; bottom: 0; pointer-events: auto; }
-        #left-controls { left: 30px; bottom: 10px; }
+        #left-controls { left: 40px; bottom: 30px; }
         #right-controls { right: 30px; bottom: 10px; }
         
         .control-group { display: flex; align-items: flex-end; gap: 20px; }
@@ -119,6 +109,35 @@
             font-size: 20px;
             margin-bottom: 30px; 
         }
+
+        /* --- Analog Stick UI --- */
+        #joystick-zone {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            position: relative;
+            touch-action: none;
+        }
+        #joystick-base {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 100px; height: 100px;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        #joystick-stick {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 50px; height: 50px;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            pointer-events: none;
+            box-shadow: 0px 4px 8px rgba(0,0,0,0.5);
+        }
     </style>
 </head>
 <body>
@@ -139,9 +158,9 @@
 
     <div id="mobile-controls">
         <div id="left-controls" class="m-area">
-            <div class="control-group">
-                <div class="m-btn" id="m-a">◄</div>
-                <div class="m-btn" id="m-d">►</div>
+            <div id="joystick-zone">
+                <div id="joystick-base"></div>
+                <div id="joystick-stick"></div>
             </div>
         </div>
         
@@ -160,21 +179,14 @@
 
     <script>
         // --- HARDCORE ANTI-ZOOM FOR MOBILE ---
-        // Prevent double-tap to zoom
         let lastTouchEnd = 0;
         document.addEventListener('touchend', function (event) {
             const now = (new Date()).getTime();
-            if (now - lastTouchEnd <= 300) {
-                event.preventDefault();
-            }
+            if (now - lastTouchEnd <= 300) event.preventDefault();
             lastTouchEnd = now;
         }, { passive: false });
-
-        // Prevent pinch to zoom
         document.addEventListener('touchmove', function (event) {
-            if (event.scale !== 1 && event.scale !== undefined) {
-                event.preventDefault();
-            }
+            if (event.scale !== 1 && event.scale !== undefined) event.preventDefault();
         }, { passive: false });
 
         // --- 1. SCENE SETUP ---
@@ -226,8 +238,9 @@
         let currentLevel = 1;
         let isTransitioning = false;
         
-        // Input state
-        const keys = { w: false, a: false, s: false, d: false, ' ': false };
+        // Input state (Steering is now a float from -1.0 to 1.0)
+        let steeringInput = 0;
+        const keys = { w: false, s: false, ' ': false };
 
         const POWER_TYPES = [
             { id: 'HEALTH', color: 0x00ff00 },
@@ -304,8 +317,10 @@
                     if (keys['s']) thrust = -currentAccel;
                     
                     let speedRatio = Math.min(this.velocity.length() / 0.1, 1.0);
-                    if (keys['a']) steering = this.turnSpeed * speedRatio;
-                    if (keys['d']) steering = -this.turnSpeed * speedRatio;
+                    // Apply analog steering! 
+                    // -1.0 is Left (Positive rotation angle), 1.0 is Right (Negative rotation angle)
+                    steering = this.turnSpeed * speedRatio * -steeringInput;
+
                 } else {
                     let target = null;
                     let minDist = Infinity;
@@ -389,38 +404,28 @@
         }
 
         function restartGame() {
-            // Clean up scene
             cars.forEach(c => scene.remove(c.mesh));
             bullets.forEach(b => scene.remove(b.mesh));
             powerUps.forEach(p => scene.remove(p.mesh));
             
-            // Reset arrays
-            cars = [];
-            bullets = [];
-            powerUps = [];
+            cars = []; bullets = []; powerUps = [];
+            currentLevel = 1; isTransitioning = false;
             
-            // Reset state
-            currentLevel = 1;
-            isTransitioning = false;
-            
-            // Reset keys
-            keys.w = false; keys.a = false; keys.s = false; keys.d = false; keys[' '] = false;
+            keys.w = false; keys.s = false; keys[' '] = false; steeringInput = 0;
             updateFireToggleColor();
+            resetJoystickVisually();
             
-            // Reset UI
             document.getElementById('levelDisp').innerText = "Level: 1";
             document.getElementById('healthDisp').innerText = "Health: 3";
             document.getElementById('powerDisp').innerText = "Weapon: Normal";
             document.getElementById('powerDisp').style.color = "#ffaa00";
             document.getElementById('gameover').style.display = 'none';
 
-            // Start fresh
             startGame();
         }
 
-        // Bind restart button
         document.getElementById('restartBtn').addEventListener('pointerdown', (e) => {
-            e.stopPropagation(); // Prevents button click from triggering other touch events
+            e.stopPropagation(); 
             restartGame();
         });
 
@@ -471,7 +476,7 @@
 
         startGame(); 
 
-        // --- 5. INPUT & AUTO-FIRE LOGIC ---
+        // --- 5. INPUT, JOYSTICK & FIRE LOGIC ---
 
         function updateFireToggleColor() {
             const btnSpace = document.getElementById('m-space');
@@ -480,12 +485,14 @@
             }
         }
 
-        // Desktop Keyboard
+        // Desktop Keyboard (Gracefully maps A/D to the steeringInput float)
         window.addEventListener('keydown', (e) => {
             if (e.repeat) return; 
             const k = e.key.toLowerCase();
             
-            if (k === ' ') {
+            if (k === 'a') steeringInput = -1.0;
+            else if (k === 'd') steeringInput = 1.0;
+            else if (k === ' ') {
                 keys[' '] = !keys[' ']; 
                 updateFireToggleColor();
             } else if (keys.hasOwnProperty(k)) {
@@ -495,18 +502,71 @@
 
         window.addEventListener('keyup', (e) => {
             const k = e.key.toLowerCase();
-            if (k !== ' ' && keys.hasOwnProperty(k)) {
+            if (k === 'a' && steeringInput <= 0) steeringInput = 0;
+            else if (k === 'd' && steeringInput >= 0) steeringInput = 0;
+            else if (k !== ' ' && keys.hasOwnProperty(k)) {
                 keys[k] = false;
             }
         });
 
-        // Mobile Pointer Events
-        const touchMap = {
-            'm-w': 'w', 'm-a': 'a', 'm-s': 's', 'm-d': 'd', 'm-space': ' '
+        // --- Virtual Joystick Logic ---
+        const joyZone = document.getElementById('joystick-zone');
+        const joyStick = document.getElementById('joystick-stick');
+        const maxRadius = 40; // Max movement radius in pixels
+
+        function handleJoystickMove(e) {
+            const rect = joyZone.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            
+            let dx = e.clientX - centerX;
+            let dy = e.clientY - centerY;
+            
+            // Constrain stick visually within a circle
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance > maxRadius) {
+                dx = (dx / distance) * maxRadius;
+                dy = (dy / distance) * maxRadius;
+            }
+
+            // Move the visual stick
+            joyStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            
+            // Map the X value to our steering (-1 to 1)
+            steeringInput = dx / maxRadius;
+        }
+
+        function resetJoystickVisually() {
+            joyStick.style.transform = `translate(-50%, -50%)`;
+            steeringInput = 0;
+        }
+
+        joyZone.addEventListener('pointerdown', (e) => {
+            joyZone.setPointerCapture(e.pointerId);
+            handleJoystickMove(e);
+        });
+
+        joyZone.addEventListener('pointermove', (e) => {
+            if (joyZone.hasPointerCapture(e.pointerId)) {
+                handleJoystickMove(e);
+            }
+        });
+
+        const releaseJoystick = (e) => {
+            if (joyZone.hasPointerCapture(e.pointerId)) {
+                joyZone.releasePointerCapture(e.pointerId);
+            }
+            resetJoystickVisually();
         };
 
+        joyZone.addEventListener('pointerup', releaseJoystick);
+        joyZone.addEventListener('pointercancel', releaseJoystick);
+
+
+        // --- Right-Side Action Buttons ---
+        const touchMap = { 'm-w': 'w', 'm-s': 's', 'm-space': ' ' };
+
         document.querySelectorAll('.m-btn').forEach(btn => {
-            
             btn.addEventListener('pointerdown', (e) => {
                 btn.setPointerCapture(e.pointerId); 
                 const key = touchMap[btn.id];
@@ -522,9 +582,7 @@
 
             const releaseKey = (e) => {
                 const key = touchMap[btn.id];
-                
                 if (key === ' ') return;
-
                 if (key) {
                     keys[key] = false;
                     btn.style.background = 'rgba(255, 255, 255, 0.2)';
@@ -647,7 +705,6 @@
                             
                             if (c.isPlayer) {
                                 document.getElementById('gameover').style.display = 'block';
-                                // Note: we don't set player = null here anymore so the camera doesn't snap to 0,0
                             }
                         }
                         hit = true;
@@ -663,7 +720,6 @@
 
             checkLevelProgression();
 
-            // Camera Tracking (Follows player even if dead so you don't lose your spot)
             if (player) {
                 const targetX = player.mesh.position.x;
                 const targetZ = player.mesh.position.z + 30; 
