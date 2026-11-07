@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GO ON! - Goblin Siege &amp; Rhythm Split</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #0b0914;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+            color: #fff;
+        }
+
+        /* Main Split Layout Overlay */
+        #game-layout {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        /* LEFT: 3D Goblin Defense Zone (60% width) */
+        #goblin-zone {
+            position: relative;
+            width: 60%;
+            height: 100%;
+            border-right: 3px solid rgba(168, 85, 247, 0.55);
+            box-shadow: inset -12px 0 30px rgba(0, 0, 0, 0.6);
+            pointer-events: auto;
+            cursor: crosshair;
+        }
+
+        .zone-header {
+            position: absolute;
+            top: 14px;
+            left: 16px;
+            right: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+            z-index: 10;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .hud-box {
+            background: rgba(15, 12, 28, 0.82);
+            backdrop-filter: blur(8px);
+            border: 2px solid rgba(168, 85, 247, 0.45);
+            border-radius: 14px;
+            padding: 8px 14px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+        }
+
+        .hud-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #c084fc;
+            font-weight: 800;
+        }
+
+        .hud-value {
+            font-size: 24px;
+            font-weight: 900;
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(192, 132, 252, 0.6);
+        }
+
+        #hearts-row {
+            display: flex;
+            gap: 4px;
+            font-size: 20px;
+            margin-top: 2px;
+        }
+        .heart-pip {
+            transition: transform 0.2s, opacity 0.2s;
+        }
+        .heart-pip.lost {
+            opacity: 0.2;
+            filter: grayscale(1);
+            transform: scale(0.8);
+        }
+
+        #goblin-alert {
+            position: absolute;
+            bottom: 22px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20, 14, 36, 0.78);
+            border: 1px solid rgba(74, 222, 128, 0.45);
+            color: #86efac;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.8px;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        /* Damage Flash on Goblin Breach */
+        #damage-flash {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle, transparent 30%, rgba(239, 68, 68, 0.65) 100%);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s;
+        }
+
+        /* RIGHT: Rhythm Arrow Highway (40% width) */
+        #rhythm-zone {
+            position: relative;
+            width: 40%;
+            height: 100%;
+            background: linear-gradient(180deg, rgba(14, 10, 28, 0.92) 0%, rgba(24, 15, 46, 0.96) 85%, rgba(38, 20, 68, 0.98) 100%);
+            display: flex;
+            flex-direction: column;
+            pointer-events: auto;
+            overflow: hidden;
+        }
+
+        #rhythm-header {
+            padding: 14px 12px 6px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #combo-badge {
+            font-size: 18px;
+            font-weight: 900;
+            color: #38bdf8;
+            text-shadow: 0 0 12px rgba(56, 189, 248, 0.7);
+        }
+
+        #judge-popup {
+            position: absolute;
+            top: 28%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            font-size: 28px;
+            font-weight: 900;
+            text-align: center;
+            pointer-events: none;
+            opacity: 0;
+            transition: transform 0.14s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.14s;
+            z-index: 20;
+            text-shadow: 0 4px 14px rgba(0,0,0,0.85);
+            white-space: nowrap;
+        }
+        #judge-popup.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        /* 4 Arrow Lanes Track */
+        #lanes-container {
+            position: relative;
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            width: 100%;
+            max-width: 420px;
+            margin: 0 auto;
+            border-left: 1px solid rgba(255, 255, 255, 0.08);
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .rhythm-lane {
+            position: relative;
+            height: 100%;
+            border-right: 1px dashed rgba(255, 255, 255, 0.08);
+            transition: background 0.1s;
+        }
+        .rhythm-lane:last-child { border-right: none; }
+        .rhythm-lane.active-flash {
+            background: linear-gradient(180deg, transparent 30%, rgba(255, 255, 255, 0.16) 100%);
+        }
+
+        /* Target Receptor Line near the bottom */
+        #receptor-bar {
+            position: absolute;
+            bottom: 36px;
+            left: 0;
+            right: 0;
+            height: 72px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            align-items: center;
+            justify-items: center;
+            background: rgba(255, 255, 255, 0.04);
+            border-top: 2px solid rgba(250, 204, 21, 0.65);
+            border-bottom: 2px solid rgba(250, 204, 21, 0.65);
+            box-shadow: 0 0 22px rgba(250, 204, 21, 0.25);
+            z-index: 12;
+        }
+
+        .receptor-btn {
+            width: 58px;
+            height: 58px;
+            border-radius: 16px;
+            border: 3px solid rgba(255, 255, 255, 0.45);
+            background: rgba(15, 10, 30, 0.75);
+            color: #fff;
+            font-size: 28px;
+            font-weight: 900;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.08s, border-color 0.08s, box-shadow 0.08s;
+            touch-action: none;
+        }
+        .receptor-btn:active, .receptor-btn.pressed {
+            transform: scale(0.88);
+            border-color: #facc15;
+            background: rgba(250, 204, 21, 0.28);
+            box-shadow: 0 0 18px #facc15;
+        }
+
+        /* Falling Arrow Notes */
+        #notes-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 14;
+        }
+
+        .falling-arrow {
+            position: absolute;
+            width: 56px;
+            height: 56px;
+            margin-left: -28px;
+            margin-top: -28px;
+            border-radius: 14px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 28px;
+            font-weight: 900;
+            color: #0b0914;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+            border: 2px solid #ffffff;
+        }
+        .arrow-0 { background: linear-gradient(135deg, #f472b6, #db2777); box-shadow: 0 0 14px #f472b6; }
+        .arrow-1 { background: linear-gradient(135deg, #38bdf8, #0284c7); box-shadow: 0 0 14px #38bdf8; }
+        .arrow-2 { background: linear-gradient(135deg, #4ade80, #16a34a); box-shadow: 0 0 14px #4ade80; }
+        .arrow-3 { background: linear-gradient(135deg, #facc15, #ca8a04); box-shadow: 0 0 14px #facc15; }
+
+        /* Start / Game Over Modal */
+        #overlay {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(35, 16, 62, 0.92), rgba(8, 5, 16, 0.98));
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .modal-card {
+            background: rgba(255, 255, 255, 0.06);
+            border: 2px solid rgba(192, 132, 252, 0.55);
+            border-radius: 24px;
+            padding: 30px 26px;
+            max-width: 520px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85), 0 0 30px rgba(168, 85, 247, 0.3);
+            backdrop-filter: blur(12px);
+        }
+
+        .logo-badge {
+            font-size: 56px;
+            margin-bottom: 8px;
+            display: inline-block;
+            animation: bounceLogo 1.6s infinite ease-in-out;
+        }
+        @keyframes bounceLogo {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-7px) scale(1.08); }
+        }
+
+        .modal-card h1 {
+            margin: 0 0 8px 0;
+            font-size: 38px;
+            letter-spacing: 1.5px;
+            color: #facc15;
+            text-shadow: 0 3px 16px rgba(250, 204, 21, 0.5);
+        }
+
+        .modal-card p {
+            color: #ddd6fe;
+            font-size: 15px;
+            line-height: 1.5;
+            margin: 0 0 18px 0;
+        }
+
+        .split-instructions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            text-align: left;
+            margin-bottom: 24px;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 14px;
+            border-radius: 16px;
+            border: 1px solid rgba(192, 132, 252, 0.25);
+            font-size: 13px;
+        }
+
+        .inst-col h3 {
+            margin: 0 0 6px 0;
+            font-size: 14px;
+            color: #4ade80;
+        }
+        .inst-col:last-child h3 {
+            color: #38bdf8;
+        }
+
+        .start-btn {
+            background: linear-gradient(135deg, #facc15, #f97316, #ec4899);
+            color: #0b0914;
+            border: none;
+            padding: 15px 44px;
+            font-size: 20px;
+            font-weight: 900;
+            border-radius: 999px;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(249, 115, 22, 0.55);
+            transition: transform 0.15s, box-shadow 0.15s;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+        .start-btn:hover {
+            transform: translateY(-2px) scale(1.04);
+            box-shadow: 0 12px 32px rgba(249, 115, 22, 0.8);
+        }
+        .start-btn:active { transform: scale(0.95); }
+
+        @media (max-width: 700px) {
+            #goblin-zone { width: 54%; }
+            #rhythm-zone { width: 46%; }
+            .receptor-btn { width: 46px; height: 46px; font-size: 22px; border-radius: 12px; }
+            .falling-arrow { width: 44px; height: 44px; margin-left: -22px; margin-top: -22px; font-size: 22px; border-radius: 11px; }
+            #receptor-bar { height: 60px; bottom: 24px; }
+            .hud-value { font-size: 18px; }
+            #goblin-alert { font-size: 10px; padding: 4px 10px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-layout">
+        <!-- LEFT SIDE: 3D Approaching Goblins -->
+        <div id="goblin-zone">
+            <div id="damage-flash"></div>
+            <div class="zone-header">
+                <div class="hud-box">
+                    <div class="hud-label">Score</div>
+                    <div id="score-val" class="hud-value">0</div>
+                </div>
+                <div class="hud-box">
+                    <div class="hud-label">Shields</div>
+                    <div id="hearts-row">
+                        <span class="heart-pip">🛡️</span>
+                        <span class="heart-pip">🛡️</span>
+                        <span class="heart-pip">🛡️</span>
+                        <span class="heart-pip">🛡️</span>
+                        <span class="heart-pip">🛡️</span>
+                    </div>
+                </div>
+            </div>
+            <div id="goblin-alert">👹 CLICK / TAP GOBLINS BEFORE THEY REACH YOU!</div>
+        </div>
+
+        <!-- RIGHT SIDE: Falling Rhythm Arrows -->
+        <div id="rhythm-zone">
+            <div id="rhythm-header">
+                <div class="hud-box" style="width:100%; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div class="hud-label">Rhythm Track</div>
+                        <div id="combo-badge">0x COMBO</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div class="hud-label">Wave</div>
+                        <div id="wave-val" style="font-size:20px; font-weight:900; color:#facc15;">1</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="judge-popup">PERFECT!</div>
+
+            <div id="lanes-container">
+                <div class="rhythm-lane" data-lane="0"></div>
+                <div class="rhythm-lane" data-lane="1"></div>
+                <div class="rhythm-lane" data-lane="2"></div>
+                <div class="rhythm-lane" data-lane="3"></div>
+
+                <div id="notes-layer"></div>
+
+                <div id="receptor-bar">
+                    <div class="receptor-btn" data-lane="0">◀</div>
+                    <div class="receptor-btn" data-lane="1">▼</div>
+                    <div class="receptor-btn" data-lane="2">▲</div>
+                    <div class="receptor-btn" data-lane="3">▶</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start & Game Over Modal -->
+    <div id="overlay">
+        <div class="modal-card">
+            <div class="logo-badge" id="modal-icon">👹⚡🎵</div>
+            <h1 id="modal-title">GO ON!</h1>
+            <p id="modal-desc">Can your brain handle two games at once? Blast the 3D Goblin Horde charging down the left canyon while nailing the falling rhythm arrows on the right!</p>
+            <div class="split-instructions">
+                <div class="inst-col">
+                    <h3>👈 LEFT: GOBLIN SIEGE</h3>
+                    <div><strong>Click / Tap</strong> directly on approaching 3D Goblins before they reach the screen!</div>
+                </div>
+                <div class="inst-col">
+                    <h3>👉 RIGHT: RHYTHM ARROWS</h3>
+                    <div>Press <strong>Arrow Keys / WASD</strong> (or <strong>Tap the Bottom Arrows</strong>) right as they hit the bottom bar!</div>
+                </div>
+            </div>
+            <button class="start-btn" id="start-btn">LET'S GO ON!</button>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- Procedural Web Audio Synthesizer ---
+        class GoOnAudio {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+            tone(freq, type, duration, vol = 0.16, slideTo = null) {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, now);
+                if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, now + duration);
+                gain.gain.setValueAtTime(vol, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + duration);
+            }
+            noteHit(lane, isPerfect) {
+                const scale = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
+                const f = scale[lane % 4] * (isPerfect ? 1.5 : 1.0);
+                this.tone(f, 'triangle', 0.16, 0.2, f * 1.08);
+            }
+            laserZap() {
+                this.tone(760, 'sawtooth', 0.14, 0.18, 180);
+            }
+            goblinSplat() {
+                this.tone(240, 'square', 0.14, 0.18, 90);
+                setTimeout(() => this.tone(480, 'sine', 0.1, 0.14, 620), 40);
+            }
+            missOrHurt() {
+                this.tone(135, 'sawtooth', 0.28, 0.25, 52);
+            }
+            gameOver() {
+                [300, 250, 200, 120].forEach((f, i) => {
+                    setTimeout(() => this.tone(f, 'sawtooth', 0.28, 0.24, f * 0.8), i * 110);
+                });
+            }
+        }
+        const sfx = new GoOnAudio();
+
+        // --- Three.js Setup (Rendered inside Left #goblin-zone) ---
+        const goblinZoneEl = document.getElementById('goblin-zone');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0d0818);
+        scene.fog = new THREE.FogExp2(0x0d0818, 0.022);
+
+        const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 140);
+        camera.position.set(0, 4.2, 11.5);
+        camera.lookAt(0, 1.5, -15);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        goblinZoneEl.appendChild(renderer.domElement);
+
+        function resizeRenderer() {
+            const rect = goblinZoneEl.getBoundingClientRect();
+            camera.aspect = rect.width / rect.height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(rect.width, rect.height);
+        }
+        resizeRenderer();
+        window.addEventListener('resize', resizeRenderer);
+
+        // --- Lighting ---
+        const hemiLight = new THREE.HemisphereLight(0xc084fc, 0x1e1b4b, 0.8);
+        scene.add(hemiLight);
+
+        const dirLight = new THREE.DirectionalLight(0xfef08a, 1.3);
+        dirLight.position.set(12, 25, 15);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        // --- 3D Canyon Road Environment ---
+        const envGroup = new THREE.Group();
+        scene.add(envGroup);
+
+        // Canyon Floor Path
+        const roadGeo = new THREE.PlaneGeometry(18, 90);
+        const roadMat = new THREE.MeshStandardMaterial({
+            color: 0x1e1633,
+            roughness: 0.75
+        });
+        const roadMesh = new THREE.Mesh(roadGeo, roadMat);
+        roadMesh.rotation.x = -Math.PI / 2;
+        roadMesh.position.z = -30;
+        roadMesh.receiveShadow = true;
+        envGroup.add(roadMesh);
+
+        // Glowing Defense Line near the player (Z = 6.5)
+        const defenseLineGeo = new THREE.BoxGeometry(16, 0.12, 0.35);
+        const defenseLineMat = new THREE.MeshBasicMaterial({ color: 0xf43f5e });
+        const defenseLine = new THREE.Mesh(defenseLineGeo, defenseLineMat);
+        defenseLine.position.set(0, 0.06, 6.5);
+        envGroup.add(defenseLine);
+
+        // Moving Grid Strips for sense of depth & speed
+        const roadStrips = [];
+        for (let z = -60; z <= 6; z += 6) {
+            const strip = new THREE.Mesh(
+                new THREE.PlaneGeometry(14, 0.15),
+                new THREE.MeshBasicMaterial({ color: 0x6b21a8, transparent: true, opacity: 0.45 })
+            );
+            strip.rotation.x = -Math.PI / 2;
+            strip.position.set(0, 0.02, z);
+            envGroup.add(strip);
+            roadStrips.push(strip);
+        }
+
+        // Canyon Rocks / Crystals along left & right edges
+        for (let z = -55; z <= 4; z += 7) {
+            [-8.2, 8.2].forEach(xSide => {
+                const crystal = new THREE.Mesh(
+                    new THREE.ConeGeometry(1.1 + Math.random() * 0.6, 3.5 + Math.random() * 3, 6),
+                    new THREE.MeshStandardMaterial({
+                        color: 0x3b0764,
+                        emissive: 0x581c87,
+                        emissiveIntensity: 0.35,
+                        roughness: 0.4
+                    })
+                );
+                crystal.position.set(xSide + (Math.random() - 0.5), 1.5, z);
+                envGroup.add(crystal);
+            });
+        }
+
+        // Player Arcane Turret Orb at bottom-center of the 3D view
+        const turretOrb = new THREE.Mesh(
+            new THREE.OctahedronGeometry(0.65, 1),
+            new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+        );
+        turretOrb.position.set(0, 1.4, 8.2);
+        scene.add(turretOrb);
+
+        // --- 3D Goblin Builder ---
+        function createGoblinMesh(isBrute = false) {
+            const group = new THREE.Group();
+            const scale = isBrute ? 1.35 : 1.0;
+            group.scale.setScalar(scale);
+
+            const skinColor = isBrute ? 0x15803d : 0x4ade80;
+            const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.45 });
+
+            // Torso (Tunic)
+            const torsoMat = new THREE.MeshStandardMaterial({
+                color: isBrute ? 0x7c2d12 : 0x854d0e,
+                roughness: 0.7
+            });
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.7, 1.3, 12), torsoMat);
+            torso.position.y = 1.05;
+            torso.castShadow = true;
+            group.add(torso);
+
+            // Goblin Head
+            const headGroup = new THREE.Group();
+            headGroup.position.y = 2.05;
+            group.add(headGroup);
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.58, 16, 14), skinMat);
+            head.scale.set(1.1, 0.95, 1.0);
+            headGroup.add(head);
+
+            // Long Pointy Goblin Ears
+            const earGeo = new THREE.ConeGeometry(0.22, 0.85, 8);
+            const leftEar = new THREE.Mesh(earGeo, skinMat);
+            leftEar.position.set(-0.78, 0.08, 0);
+            leftEar.rotation.z = Math.PI / 2.4;
+            const rightEar = new THREE.Mesh(earGeo, skinMat);
+            rightEar.position.set(0.78, 0.08, 0);
+            rightEar.rotation.z = -Math.PI / 2.4;
+            headGroup.add(leftEar, rightEar);
+
+            // Pointy Nose
+            const nose = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.45, 8), skinMat);
+            nose.rotation.x = Math.PI / 2;
+            nose.position.set(0, -0.05, 0.65);
+            headGroup.add(nose);
+
+            // Glowing Mischievous Eyes
+            const eyeGeo = new THREE.SphereGeometry(0.12, 10, 10);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: isBrute ? 0xff0055 : 0xfacc15 });
+            const lEye = new THREE.Mesh(eyeGeo, eyeMat);
+            lEye.position.set(-0.22, 0.12, 0.5);
+            const rEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rEye.position.set(0.22, 0.12, 0.5);
+            headGroup.add(lEye, rEye);
+
+            // Wooden Club in Right Hand
+            const clubGroup = new THREE.Group();
+            clubGroup.position.set(0.75, 1.2, 0.3);
+            const club = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.24, 0.1, 1.4, 10),
+                new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.8 })
+            );
+            club.position.y = 0.5;
+            club.rotation.x = Math.PI / 4;
+            clubGroup.add(club);
+            group.add(clubGroup);
+
+            // Invisible generous hitbox sphere so clicking/tapping fast goblins feels super responsive!
+            const hitBox = new THREE.Mesh(
+                new THREE.CylinderGeometry(1.35, 1.35, 3.1, 12),
+                new THREE.MeshBasicMaterial({ visible: false })
+            );
+            hitBox.position.y = 1.5;
+            group.add(hitBox);
+
+            return { group, headGroup, clubGroup, hitBox };
+        }
+
+        // --- Game State ---
+        let gameActive = false;
+        let score = 0;
+        let wave = 1;
+        let combo = 0;
+        let maxShields = 5;
+        let shields = 5;
+
+        const goblins = [];
+        const lasers = [];
+        const particles = [];
+        const fallingNotes = [];
+
+        let goblinSpawnTimer = 0;
+        let noteSpawnTimer = 0;
+        let waveTimer = 0;
+
+        const ARROW_SYMBOLS = ['◀', '▼', '▲', '▶'];
+        const notesLayerEl = document.getElementById('notes-layer');
+        const laneEls = document.querySelectorAll('.rhythm-lane');
+        const receptorBtns = document.querySelectorAll('.receptor-btn');
+        const judgePopupEl = document.getElementById('judge-popup');
+        const scoreEl = document.getElementById('score-val');
+        const comboEl = document.getElementById('combo-badge');
+        const waveEl = document.getElementById('wave-val');
+        const heartPips = document.querySelectorAll('.heart-pip');
+        const damageFlashEl = document.getElementById('damage-flash');
+        let judgeTimeout = null;
+
+        function showJudge(text, color) {
+            judgePopupEl.textContent = text;
+            judgePopupEl.style.color = color;
+            judgePopupEl.classList.add('show');
+            if (judgeTimeout) clearTimeout(judgeTimeout);
+            judgeTimeout = setTimeout(() => judgePopupEl.classList.remove('show'), 480);
+        }
+
+        function updateHUD() {
+            scoreEl.textContent = score;
+            comboEl.textContent = `${combo}x COMBO`;
+            waveEl.textContent = wave;
+            heartPips.forEach((pip, idx) => {
+                pip.classList.toggle('lost', idx >= shields);
+            });
+        }
+
+        function takeDamage(reasonText) {
+            shields--;
+            combo = 0;
+            sfx.missOrHurt();
+            showJudge(reasonText, '#f43f5e');
+            damageFlashEl.style.opacity = '1';
+            setTimeout(() => { damageFlashEl.style.opacity = '0'; }, 180);
+            updateHUD();
+
+            if (shields <= 0) {
+                triggerGameOver();
+            }
+        }
+
+        // --- Spawn Approaching 3D Goblin ---
+        function spawnGoblin() {
+            const isBrute = Math.random() < Math.min(0.15 + wave * 0.04, 0.4);
+            const { group, headGroup, clubGroup, hitBox } = createGoblinMesh(isBrute);
+
+            // Spawn far in the distance (-48) across the canyon width
+            const xPos = (Math.random() - 0.5) * 11.5;
+            group.position.set(xPos, 0, -48);
+            scene.add(group);
+
+            const goblinObj = {
+                group,
+                headGroup,
+                clubGroup,
+                hitBox,
+                isBrute,
+                speed: (5.2 + wave * 0.65 + Math.random() * 1.8) * (isBrute ? 0.82 : 1.0),
+                wobbleOffset: Math.random() * Math.PI * 2
+            };
+            hitBox.userData.goblinRef = goblinObj;
+            goblins.push(goblinObj);
+        }
+
+        // --- Spawn Laser Beam & Explosion Particles ---
+        function shootLaserAt(targetPos) {
+            const start = turretOrb.position.clone();
+            const end = targetPos.clone().add(new THREE.Vector3(0, 1.3, 0));
+            const points = [start, end];
+            const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+            const lineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, linewidth: 3 });
+            const line = new THREE.Line(lineGeo, lineMat);
+            scene.add(line);
+            lasers.push({ line, life: 0.14 });
+
+            // Particle burst
+            const pGeo = new THREE.OctahedronGeometry(0.24, 0);
+            for (let i = 0; i < 14; i++) {
+                const pMat = new THREE.MeshBasicMaterial({
+                    color: i % 2 === 0 ? 0x4ade80 : 0xfacc15
+                });
+                const m = new THREE.Mesh(pGeo, pMat);
+                m.position.copy(end);
+                const ang = Math.random() * Math.PI * 2;
+                const spd = 2 + Math.random() * 6;
+                const vel = new THREE.Vector3(
+                    Math.cos(ang) * spd,
+                    2 + Math.random() * 5,
+                    Math.sin(ang) * spd
+                );
+                scene.add(m);
+                particles.push({ mesh: m, vel, life: 0.45 + Math.random() * 0.25 });
+            }
+        }
+
+        // --- Click / Tap Goblin Raycasting ---
+        const raycaster = new THREE.Raycaster();
+        const pointerNDC = new THREE.Vector2();
+
+        goblinZoneEl.addEventListener('pointerdown', (e) => {
+            if (!gameActive) return;
+            e.preventDefault();
+            const rect = goblinZoneEl.getBoundingClientRect();
+            pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(pointerNDC, camera);
+            const hitBoxes = goblins.map(g => g.hitBox);
+            const intersects = raycaster.intersectObjects(hitBoxes, false);
+
+            if (intersects.length > 0) {
+                const hitGoblin = intersects[0].object.userData.goblinRef;
+                if (hitGoblin) {
+                    const idx = goblins.indexOf(hitGoblin);
+                    if (idx !== -1) {
+                        sfx.laserZap();
+                        sfx.goblinSplat();
+                        shootLaserAt(hitGoblin.group.position);
+                        scene.remove(hitGoblin.group);
+                        goblins.splice(idx, 1);
+
+                        const pts = (hitGoblin.isBrute ? 150 : 100) + combo * 10;
+                        score += pts;
+                        updateHUD();
+                    }
+                }
+            }
+        });
+
+        // --- Rhythm Highway Logic (Right Side) ---
+        function getReceptorCenterY() {
+            const containerRect = document.getElementById('lanes-container').getBoundingClientRect();
+            const receptorRect = document.getElementById('receptor-bar').getBoundingClientRect();
+            return (receptorRect.top - containerRect.top) + receptorRect.height / 2;
+        }
+
+        function spawnFallingArrow() {
+            const lane = Math.floor(Math.random() * 4);
+            const el = document.createElement('div');
+            el.className = `falling-arrow arrow-${lane}`;
+            el.textContent = ARROW_SYMBOLS[lane];
+            el.style.left = `${(lane + 0.5) * 25}%`;
+            el.style.top = `-40px`;
+            notesLayerEl.appendChild(el);
+
+            fallingNotes.push({
+                lane,
+                y: -40,
+                speed: 220 + wave * 24, // pixels per second
+                el,
+                hit: false
+            });
+        }
+
+        function triggerLanePress(lane) {
+            if (!gameActive) return;
+
+            // Visual flash on lane & receptor button
+            const btn = receptorBtns[lane];
+            const laneEl = laneEls[lane];
+            btn.classList.add('pressed');
+            laneEl.classList.add('active-flash');
+            setTimeout(() => {
+                btn.classList.remove('pressed');
+                laneEl.classList.remove('active-flash');
+            }, 110);
+
+            const targetY = getReceptorCenterY();
+            // Find closest unhit arrow in this lane
+            let bestNote = null;
+            let bestDist = Infinity;
+
+            for (const note of fallingNotes) {
+                if (note.lane === lane && !note.hit) {
+                    const dist = Math.abs(note.y - targetY);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        bestNote = note;
+                    }
+                }
+            }
+
+            // Hit windows (generous & snappy!)
+            const PERFECT_WINDOW = 36;
+            const GOOD_WINDOW = 78;
+
+            if (bestNote && bestDist <= GOOD_WINDOW) {
+                bestNote.hit = true;
+                bestNote.el.remove();
+                const idx = fallingNotes.indexOf(bestNote);
+                if (idx !== -1) fallingNotes.splice(idx, 1);
+
+                const isPerfect = bestDist <= PERFECT_WINDOW;
+                combo++;
+                const earned = (isPerfect ? 150 : 80) + combo * 15;
+                score += earned;
+                sfx.noteHit(lane, isPerfect);
+                showJudge(isPerfect ? `PERFECT! +${earned}` : `GREAT! +${earned}`, isPerfect ? '#4ade80' : '#38bdf8');
+                updateHUD();
+            } else {
+                // Pressed when no arrow was near the bottom bar
+                combo = 0;
+                sfx.missOrHurt();
+                showJudge('EARLY / MISS!', '#f97316');
+                updateHUD();
+            }
+        }
+
+        // Keyboard bindings for Rhythm Arrows (Arrow Keys + WASD / DFJK)
+        window.addEventListener('keydown', (e) => {
+            if (e.repeat) return;
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'KeyD') {
+                if (e.code === 'ArrowLeft' || e.code === 'KeyA') triggerLanePress(0);
+            }
+            if (e.code === 'ArrowDown' || e.code === 'KeyS') triggerLanePress(1);
+            if (e.code === 'ArrowUp' || e.code === 'KeyW') triggerLanePress(2);
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') triggerLanePress(3);
+        });
+
+        // Touch / Click bindings on the 4 bottom arrow receptors
+        receptorBtns.forEach(btn => {
+            btn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const lane = parseInt(btn.getAttribute('data-lane'), 10);
+                triggerLanePress(lane);
+            });
+        });
+
+        // --- Game Lifecycle ---
+        function startGame() {
+            sfx.init();
+            document.getElementById('overlay').style.display = 'none';
+
+            // Clear old entities
+            goblins.forEach(g => scene.remove(g.group));
+            goblins.length = 0;
+            lasers.forEach(l => scene.remove(l.line));
+            lasers.length = 0;
+            particles.forEach(p => scene.remove(p.mesh));
+            particles.length = 0;
+            fallingNotes.forEach(n => n.el.remove());
+            fallingNotes.length = 0;
+
+            score = 0;
+            wave = 1;
+            combo = 0;
+            shields = maxShields;
+            goblinSpawnTimer = 0;
+            noteSpawnTimer = 0;
+            waveTimer = 0;
+
+            updateHUD();
+            spawnGoblin();
+            spawnFallingArrow();
+            gameActive = true;
+        }
+
+        function triggerGameOver() {
+            gameActive = false;
+            sfx.gameOver();
+            const overlay = document.getElementById('overlay');
+            document.getElementById('modal-icon').textContent = '💥👹🎵';
+            document.getElementById('modal-title').textContent = 'OVERWHELMED!';
+            document.getElementById('modal-desc').innerHTML = `You survived until <strong>Wave ${wave}</strong> with a final score of <strong>${score}</strong>! Ready to split your focus and go on again?`;
+            document.getElementById('start-btn').textContent = 'PLAY AGAIN';
+            overlay.style.display = 'flex';
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+
+        // --- Main Animation Loop ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+
+            turretOrb.rotation.y += dt * 2.5;
+            turretOrb.rotation.x += dt * 1.5;
+
+            if (gameActive) {
+                waveTimer += dt;
+                if (waveTimer >= 18) {
+                    waveTimer = 0;
+                    wave++;
+                    showJudge(`WAVE ${wave}! SPEED UP! 🔥`, '#facc15');
+                    updateHUD();
+                }
+
+                // Animate canyon road grid strips
+                roadStrips.forEach(s => {
+                    s.position.z += dt * (6 + wave);
+                    if (s.position.z > 8) s.position.z -= 66;
+                });
+
+                // 1. Spawn & Update Approaching 3D Goblins (Left Zone)
+                goblinSpawnTimer += dt;
+                const goblinInterval = Math.max(0.65, 1.85 - wave * 0.14);
+                if (goblinSpawnTimer >= goblinInterval) {
+                    goblinSpawnTimer = 0;
+                    spawnGoblin();
+                }
+
+                for (let i = goblins.length - 1; i >= 0; i--) {
+                    const g = goblins[i];
+                    g.group.position.z += g.speed * dt;
+
+                    // Running bounce & club swing animation
+                    const runCycle = elapsed * 12 + g.wobbleOffset;
+                    g.group.position.y = Math.abs(Math.sin(runCycle)) * 0.35;
+                    g.group.rotation.z = Math.sin(runCycle) * 0.12;
+                    g.clubGroup.rotation.x = Math.sin(runCycle * 1.2) * 0.65;
+
+                    // Did goblin breach the player's defense line?
+                    if (g.group.position.z >= 6.5) {
+                        scene.remove(g.group);
+                        goblins.splice(i, 1);
+                        takeDamage('GOBLIN BREACHED! 👹');
+                        if (!gameActive) break;
+                    }
+                }
+
+                // 2. Spawn & Update Falling Rhythm Arrows (Right Zone)
+                noteSpawnTimer += dt;
+                const noteInterval = Math.max(0.42, 1.05 - wave * 0.07);
+                if (noteSpawnTimer >= noteInterval) {
+                    noteSpawnTimer = 0;
+                    spawnFallingArrow();
+                }
+
+                const targetY = getReceptorCenterY();
+                const containerHeight = document.getElementById('lanes-container').clientHeight;
+
+                for (let i = fallingNotes.length - 1; i >= 0; i--) {
+                    const n = fallingNotes[i];
+                    n.y += n.speed * dt;
+                    n.el.style.top = `${n.y}px`;
+
+                    // Missed arrow past the bottom of the screen
+                    if (n.y > Math.min(targetY + 75, containerHeight + 20)) {
+                        n.el.remove();
+                        fallingNotes.splice(i, 1);
+                        takeDamage('MISSED ARROW! 🎵');
+                        if (!gameActive) break;
+                    }
+                }
+            }
+
+            // Update Laser Beams
+            for (let i = lasers.length - 1; i >= 0; i--) {
+                const l = lasers[i];
+                l.life -= dt;
+                if (l.life <= 0) {
+                    scene.remove(l.line);
+                    lasers.splice(i, 1);
+                }
+            }
+
+            // Update 3D Explosion Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.life -= dt;
+                p.mesh.position.addScaledVector(p.vel, dt);
+                p.vel.y -= 14 * dt;
+                p.mesh.rotation.x += dt * 6;
+                p.mesh.scale.setScalar(Math.max(p.life * 2, 0.01));
+                if (p.life <= 0) {
+                    scene.remove(p.mesh);
+                    particles.splice(i, 1);
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
