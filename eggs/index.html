@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EGGS: Shell Shocked 3D</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #1a1423;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+        }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            right: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+            z-index: 10;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .hud-card {
+            background: rgba(25, 20, 35, 0.82);
+            backdrop-filter: blur(8px);
+            border: 2px solid rgba(255, 214, 102, 0.45);
+            border-radius: 16px;
+            padding: 12px 18px;
+            color: #fff8e7;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        }
+
+        .hud-title {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #ffd166;
+            margin-bottom: 4px;
+            font-weight: 700;
+        }
+
+        .stat-big {
+            font-size: 28px;
+            font-weight: 900;
+            color: #ffffff;
+            text-shadow: 0 2px 8px rgba(255, 183, 3, 0.5);
+        }
+
+        .stat-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-top: 6px;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        #shell-hearts {
+            display: flex;
+            gap: 6px;
+            font-size: 22px;
+            margin-top: 4px;
+        }
+
+        .shell-pip {
+            display: inline-block;
+            transition: transform 0.25s, opacity 0.25s;
+        }
+        .shell-pip.cracked {
+            opacity: 0.25;
+            transform: scale(0.8) rotate(-15deg);
+            filter: grayscale(1);
+        }
+
+        #trail-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #ffb703, #fb8500);
+            color: #1a1423;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-weight: 900;
+            font-size: 13px;
+        }
+
+        #powerup-banner {
+            margin-top: 6px;
+            font-size: 13px;
+            color: #72efdd;
+            font-weight: 800;
+            display: none;
+        }
+
+        /* Center notifications */
+        #toast {
+            position: absolute;
+            top: 22%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            font-size: 36px;
+            font-weight: 900;
+            color: #ffd166;
+            text-shadow: 0 4px 16px rgba(0,0,0,0.75), 0 0 20px rgba(255, 183, 3, 0.6);
+            pointer-events: none;
+            opacity: 0;
+            transition: transform 0.25s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.25s;
+            z-index: 15;
+            text-align: center;
+            white-space: nowrap;
+        }
+        #toast.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        /* Start & Game Over Modal */
+        #overlay {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(40, 28, 58, 0.88), rgba(15, 10, 24, 0.96));
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 30;
+            padding: 20px;
+            text-align: center;
+            color: #fff8e7;
+        }
+
+        .modal-box {
+            background: rgba(255, 255, 255, 0.06);
+            border: 2px solid rgba(255, 209, 102, 0.5);
+            border-radius: 24px;
+            padding: 32px 28px;
+            max-width: 480px;
+            width: 100%;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            backdrop-filter: blur(12px);
+        }
+
+        .egg-logo {
+            font-size: 64px;
+            line-height: 1;
+            margin-bottom: 10px;
+            display: inline-block;
+            animation: wobble 2s infinite ease-in-out;
+        }
+
+        @keyframes wobble {
+            0%, 100% { transform: rotate(-8deg) translateY(0); }
+            50% { transform: rotate(8deg) translateY(-6px); }
+        }
+
+        .modal-box h1 {
+            margin: 0 0 8px 0;
+            font-size: 38px;
+            letter-spacing: 1px;
+            color: #ffd166;
+            text-shadow: 0 3px 12px rgba(255, 183, 3, 0.4);
+        }
+
+        .modal-box p {
+            color: #e0d6eb;
+            font-size: 15px;
+            line-height: 1.5;
+            margin: 0 0 18px 0;
+        }
+
+        .rules-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            text-align: left;
+            margin-bottom: 22px;
+            font-size: 13px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 14px;
+            border-radius: 14px;
+        }
+
+        .rule-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .rule-icon {
+            font-size: 20px;
+        }
+
+        .play-btn {
+            background: linear-gradient(135deg, #ffd166, #fb8500);
+            color: #1d1528;
+            border: none;
+            padding: 15px 42px;
+            font-size: 20px;
+            font-weight: 900;
+            border-radius: 999px;
+            cursor: pointer;
+            box-shadow: 0 8px 20px rgba(251, 133, 0, 0.45);
+            transition: transform 0.15s, box-shadow 0.15s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .play-btn:hover {
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 12px 26px rgba(251, 133, 0, 0.65);
+        }
+        .play-btn:active {
+            transform: scale(0.96);
+        }
+
+        /* Mobile Controls + Desktop Hints */
+        #controls-hint {
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 248, 231, 0.7);
+            font-size: 13px;
+            background: rgba(0,0,0,0.45);
+            padding: 6px 16px;
+            border-radius: 999px;
+            pointer-events: none;
+            z-index: 10;
+            white-space: nowrap;
+        }
+
+        #mobile-controls {
+            display: none;
+            position: absolute;
+            bottom: 24px;
+            left: 0;
+            width: 100%;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        @media (pointer: coarse), (max-width: 900px) {
+            #mobile-controls { display: block; }
+            #controls-hint { display: none; }
+        }
+
+        #joystick-zone {
+            position: absolute;
+            left: 28px;
+            bottom: 10px;
+            width: 130px;
+            height: 130px;
+            background: rgba(255, 255, 255, 0.12);
+            border: 2px solid rgba(255, 209, 102, 0.5);
+            border-radius: 50%;
+            pointer-events: auto;
+            touch-action: none;
+        }
+
+        #joystick-knob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 54px;
+            height: 54px;
+            background: radial-gradient(circle at 30% 30%, #ffe699, #fb8500);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            pointer-events: none;
+        }
+
+        #action-buttons {
+            position: absolute;
+            right: 28px;
+            bottom: 16px;
+            display: flex;
+            gap: 14px;
+            pointer-events: auto;
+        }
+
+        .act-btn {
+            width: 74px;
+            height: 74px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.7);
+            font-weight: 900;
+            font-size: 15px;
+            color: #1a1423;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.45);
+            cursor: pointer;
+            touch-action: none;
+        }
+        #jump-btn {
+            background: linear-gradient(135deg, #ffd166, #ffb703);
+        }
+        #dash-btn {
+            background: linear-gradient(135deg, #72efdd, #4ea8de);
+        }
+        .act-btn:active {
+            transform: scale(0.9);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="hud">
+        <div class="hud-card">
+            <div class="hud-title">Kitchen Score</div>
+            <div id="score-val" class="stat-big">0</div>
+            <div class="stat-row">
+                <span>Wave <strong id="wave-val">1</strong></span>
+                <span id="trail-badge">Following: 0</span>
+            </div>
+        </div>
+
+        <div class="hud-card" style="text-align: right;">
+            <div class="hud-title">Shell Integrity</div>
+            <div id="shell-hearts">
+                <span class="shell-pip">🥚</span>
+                <span class="shell-pip">🥚</span>
+                <span class="shell-pip">🥚</span>
+            </div>
+            <div id="powerup-banner">🛡️ BUBBLE WRAP SHIELD ACTIVE</div>
+        </div>
+    </div>
+
+    <div id="toast">NEST COMBO!</div>
+
+    <div id="controls-hint">
+        WASD / Arrows to Roll • SPACE to Hop • SHIFT for Yolk Dash • Bring Lost Eggs to the Center Nest!
+    </div>
+
+    <div id="mobile-controls">
+        <div id="joystick-zone">
+            <div id="joystick-knob"></div>
+        </div>
+        <div id="action-buttons">
+            <div id="dash-btn" class="act-btn">⚡<span>DASH</span></div>
+            <div id="jump-btn" class="act-btn">🐣<span>HOP</span></div>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <div class="modal-box">
+            <div class="egg-logo" id="modal-icon">🥚</div>
+            <h1 id="modal-title">EGGS: SHELL SHOCKED</h1>
+            <p id="modal-desc">Roll across the giant breakfast table! Rescue lost mini-eggs into a wobbling conga line and guide them safely to the cozy <strong>Center Nest</strong> before the kitchen hazards turn you sunny-side up!</p>
+            <div class="rules-grid">
+                <div class="rule-item"><span class="rule-icon">🐣</span><span>Collect Mini-Eggs to build a combo train</span></div>
+                <div class="rule-item"><span class="rule-icon">🪺</span><span>Bank at the Center Nest for big points + heal</span></div>
+                <div class="rule-item"><span class="rule-icon">🍳</span><span>Dodge Rolling Pins &amp; Sizzling Burners</span></div>
+                <div class="rule-item"><span class="rule-icon">🫧</span><span>Grab Bubble Wrap for cushion armor</span></div>
+            </div>
+            <button class="play-btn" id="start-btn">CRACK INTO IT!</button>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- Web Audio Procedural Synth ---
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+            playTone(freq, type, duration, vol = 0.15, slideTo = null) {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, now);
+                if (slideTo) {
+                    osc.frequency.exponentialRampToValueAtTime(slideTo, now + duration);
+                }
+                gain.gain.setValueAtTime(vol, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + duration);
+            }
+            hop() {
+                this.playTone(320, 'sine', 0.16, 0.18, 680);
+            }
+            dash() {
+                this.playTone(220, 'triangle', 0.22, 0.2, 880);
+            }
+            pickup(comboCount) {
+                const base = 520 + Math.min(comboCount * 65, 600);
+                this.playTone(base, 'sine', 0.12, 0.18, base * 1.35);
+            }
+            bank() {
+                if (!this.ctx) return;
+                [523.25, 659.25, 783.99, 1046.5].forEach((n, idx) => {
+                    setTimeout(() => this.playTone(n, 'triangle', 0.22, 0.2, n * 1.05), idx * 65);
+                });
+            }
+            crack() {
+                this.playTone(140, 'sawtooth', 0.28, 0.25, 55);
+            }
+            splat() {
+                this.playTone(180, 'sawtooth', 0.45, 0.3, 38);
+                setTimeout(() => this.playTone(95, 'square', 0.35, 0.2, 30), 120);
+            }
+        }
+        const sfx = new SoundFX();
+
+        // --- Scene, Camera, Renderer ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1f1830);
+        scene.fog = new THREE.FogExp2(0x1f1830, 0.012);
+
+        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 250);
+        camera.position.set(0, 22, 26);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // --- Lighting ---
+        const hemiLight = new THREE.HemisphereLight(0xfff4d6, 0x3b2d54, 0.85);
+        scene.add(hemiLight);
+
+        const dirLight = new THREE.DirectionalLight(0xfff0cc, 1.4);
+        dirLight.position.set(22, 38, 20);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 5;
+        dirLight.shadow.camera.far = 90;
+        const d = 32;
+        dirLight.shadow.camera.left = -d;
+        dirLight.shadow.camera.right = d;
+        dirLight.shadow.camera.top = d;
+        dirLight.shadow.camera.bottom = -d;
+        scene.add(dirLight);
+
+        // --- Helper: Create Procedural Egg Geometry ---
+        function createEggGeometry(radius = 1, heightScale = 1.35) {
+            const geom = new THREE.SphereGeometry(radius, 28, 24);
+            const pos = geom.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                let x = pos.getX(i);
+                let y = pos.getY(i);
+                let z = pos.getZ(i);
+                // Taper top, plump bottom
+                const normalizedY = y / radius;
+                const taper = normalizedY > 0
+                    ? 1 - 0.26 * normalizedY
+                    : 1 + 0.06 * Math.abs(normalizedY);
+                pos.setXYZ(i, x * taper, y * heightScale, z * taper);
+            }
+            geom.computeVertexNormals();
+            return geom;
+        }
+
+        // --- Arena Setup (Giant Kitchen Butcher-Block Island) ---
+        const ARENA_RADIUS = 24;
+        const arenaGroup = new THREE.Group();
+        scene.add(arenaGroup);
+
+        // Main tabletop cylinder
+        const tableGeo = new THREE.CylinderGeometry(ARENA_RADIUS, ARENA_RADIUS * 0.96, 3, 64);
+        const tableMat = new THREE.MeshStandardMaterial({
+            color: 0xe6ccb2,
+            roughness: 0.65,
+            metalness: 0.05
+        });
+        const tableMesh = new THREE.Mesh(tableGeo, tableMat);
+        tableMesh.position.y = -1.5;
+        tableMesh.receiveShadow = true;
+        arenaGroup.add(tableMesh);
+
+        // Checkerboard tablecloth rim tiles
+        const rimGeo = new THREE.TorusGeometry(ARENA_RADIUS - 0.3, 0.45, 16, 64);
+        const rimMat = new THREE.MeshStandardMaterial({ color: 0xff6b6b, roughness: 0.4 });
+        const rimMesh = new THREE.Mesh(rimGeo, rimMat);
+        rimMesh.rotation.x = Math.PI / 2;
+        rimMesh.position.y = 0.05;
+        rimMesh.receiveShadow = true;
+        arenaGroup.add(rimMesh);
+
+        // Decorative subtle grid rings on the table
+        for (let r = 8; r < ARENA_RADIUS; r += 6) {
+            const ringG = new THREE.RingGeometry(r - 0.08, r + 0.08, 64);
+            const ringM = new THREE.MeshBasicMaterial({ color: 0xd4a373, side: THREE.DoubleSide, transparent: true, opacity: 0.45 });
+            const ring = new THREE.Mesh(ringG, ringM);
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.y = 0.02;
+            arenaGroup.add(ring);
+        }
+
+        // --- Center Cozy Nest (Goal Zone) ---
+        const NEST_RADIUS = 3.6;
+        const nestGroup = new THREE.Group();
+        scene.add(nestGroup);
+
+        const nestOuterGeo = new THREE.TorusGeometry(NEST_RADIUS - 0.5, 0.75, 16, 40);
+        const nestMat = new THREE.MeshStandardMaterial({ color: 0xc98a4b, roughness: 0.85 });
+        const nestRing = new THREE.Mesh(nestOuterGeo, nestMat);
+        nestRing.rotation.x = Math.PI / 2;
+        nestRing.position.y = 0.35;
+        nestRing.castShadow = true;
+        nestRing.receiveShadow = true;
+        nestGroup.add(nestRing);
+
+        const nestCushionGeo = new THREE.CylinderGeometry(NEST_RADIUS - 0.6, NEST_RADIUS - 0.6, 0.3, 32);
+        const nestCushionMat = new THREE.MeshStandardMaterial({
+            color: 0xffe599,
+            emissive: 0xffb703,
+            emissiveIntensity: 0.25,
+            roughness: 0.6
+        });
+        const nestCushion = new THREE.Mesh(nestCushionGeo, nestCushionMat);
+        nestCushion.position.y = 0.15;
+        nestCushion.receiveShadow = true;
+        nestGroup.add(nestCushion);
+
+        // Glowing beacon ring above nest
+        const beaconGeo = new THREE.RingGeometry(NEST_RADIUS - 0.2, NEST_RADIUS + 0.15, 48);
+        const beaconMat = new THREE.MeshBasicMaterial({ color: 0xffd166, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
+        const beaconRing = new THREE.Mesh(beaconGeo, beaconMat);
+        beaconRing.rotation.x = -Math.PI / 2;
+        beaconRing.position.y = 0.08;
+        nestGroup.add(beaconRing);
+
+        // --- Player Egg Construction ---
+        const playerGroup = new THREE.Group();
+        scene.add(playerGroup);
+
+        const eggMeshGroup = new THREE.Group();
+        playerGroup.add(eggMeshGroup);
+
+        const playerEggGeo = createEggGeometry(1.0, 1.35);
+        const playerEggMat = new THREE.MeshStandardMaterial({
+            color: 0xfff8eb,
+            roughness: 0.28,
+            metalness: 0.05
+        });
+        const playerEggMesh = new THREE.Mesh(playerEggGeo, playerEggMat);
+        playerEggMesh.castShadow = true;
+        playerEggMesh.receiveShadow = true;
+        eggMeshGroup.add(playerEggMesh);
+
+        // Cute Eyes & Blush on Player Egg
+        const eyeGeo = new THREE.SphereGeometry(0.13, 12, 12);
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1a1423 });
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+        leftEye.position.set(-0.32, 0.25, 0.85);
+        const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+        rightEye.position.set(0.32, 0.25, 0.85);
+        eggMeshGroup.add(leftEye, rightEye);
+
+        const blushGeo = new THREE.SphereGeometry(0.14, 12, 12);
+        const blushMat = new THREE.MeshBasicMaterial({ color: 0xff758f });
+        const leftBlush = new THREE.Mesh(blushGeo, blushMat);
+        leftBlush.scale.set(1.3, 0.7, 0.5);
+        leftBlush.position.set(-0.5, 0.08, 0.78);
+        const rightBlush = new THREE.Mesh(blushGeo, blushMat);
+        rightBlush.scale.set(1.3, 0.7, 0.5);
+        rightBlush.position.set(0.5, 0.08, 0.78);
+        eggMeshGroup.add(leftBlush, rightBlush);
+
+        // Crack lines overlay on the egg (shown as integrity drops)
+        const crackGroup = new THREE.Group();
+        eggMeshGroup.add(crackGroup);
+        const crackLineMat = new THREE.MeshBasicMaterial({ color: 0x3d2b1f });
+        for (let i = 0; i < 6; i++) {
+            const bar = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.45, 0.06), crackLineMat);
+            const angle = (i / 6) * Math.PI * 2;
+            bar.position.set(Math.cos(angle) * 0.88, (i % 2 === 0 ? 0.2 : -0.2), Math.sin(angle) * 0.88);
+            bar.rotation.z = (i % 2 === 0 ? 0.5 : -0.5);
+            bar.visible = false;
+            crackGroup.add(bar);
+        }
+
+        // Bubble Wrap Shield Sphere around Player
+        const shieldGeo = new THREE.SphereGeometry(1.55, 24, 24);
+        const shieldMat = new THREE.MeshStandardMaterial({
+            color: 0x72efdd,
+            emissive: 0x4ea8de,
+            emissiveIntensity: 0.4,
+            transparent: true,
+            opacity: 0.38,
+            roughness: 0.1,
+            wireframe: false
+        });
+        const shieldMesh = new THREE.Mesh(shieldGeo, shieldMat);
+        shieldMesh.visible = false;
+        playerGroup.add(shieldMesh);
+
+        // Sunny-side-up Fried Egg Mesh (shown on Game Over Splat!)
+        const friedEggGroup = new THREE.Group();
+        friedEggGroup.visible = false;
+        scene.add(friedEggGroup);
+        const eggWhiteGeo = new THREE.CylinderGeometry(2.1, 2.2, 0.12, 32);
+        const eggWhiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+        const eggWhite = new THREE.Mesh(eggWhiteGeo, eggWhiteMat);
+        eggWhite.position.y = 0.06;
+        const yolkGeo = new THREE.SphereGeometry(0.85, 24, 16);
+        const yolkMat = new THREE.MeshStandardMaterial({ color: 0xffaa00, roughness: 0.2, emissive: 0xff8800, emissiveIntensity: 0.2 });
+        const yolk = new THREE.Mesh(yolkGeo, yolkMat);
+        yolk.scale.set(1, 0.55, 1);
+        yolk.position.y = 0.15;
+        friedEggGroup.add(eggWhite, yolk);
+
+        // --- Game State ---
+        let gameActive = false;
+        let score = 0;
+        let wave = 1;
+        let bankedEggsThisWave = 0;
+        let maxHealth = 3;
+        let health = 3;
+        let invulnTimer = 0;
+        let shieldTimer = 0;
+        let dashCooldown = 0;
+        let dashActiveTimer = 0;
+
+        const playerState = {
+            pos: new THREE.Vector3(0, 1.35, 7),
+            vel: new THREE.Vector3(0, 0, 0),
+            vy: 0,
+            isGrounded: true,
+            facingAngle: 0,
+            rollPhase: 0
+        };
+
+        // Trail history for following rescued mini-eggs
+        const trailHistory = [];
+        const MAX_TRAIL_POINTS = 400;
+        const followingEggs = [];
+        const wildEggs = [];
+        const rollingPins = [];
+        const burnerZones = [];
+        const powerups = [];
+        const particles = [];
+
+        // Pastel palette for collectible mini-eggs
+        const EGG_COLORS = [0xffadad, 0xffd6a5, 0xfdffb6, 0xcaffbf, 0x9bf6ff, 0xbdb2ff, 0xffc6ff, 0xffb703];
+
+        // --- Spawners ---
+        function randomArenaPoint(minRadius = 5.5, maxRadius = ARENA_RADIUS - 2.5) {
+            const angle = Math.random() * Math.PI * 2;
+            const r = minRadius + Math.random() * (maxRadius - minRadius);
+            return new THREE.Vector3(Math.cos(angle) * r, 0, Math.sin(angle) * r);
+        }
+
+        function spawnWildEgg(isGolden = false) {
+            const group = new THREE.Group();
+            const color = isGolden ? 0xffd166 : EGG_COLORS[Math.floor(Math.random() * EGG_COLORS.length)];
+            const geo = createEggGeometry(0.62, 1.32);
+            const mat = new THREE.MeshStandardMaterial({
+                color,
+                roughness: isGolden ? 0.15 : 0.35,
+                metalness: isGolden ? 0.65 : 0.05,
+                emissive: isGolden ? 0xff9f1c : 0x000000,
+                emissiveIntensity: isGolden ? 0.35 : 0
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.castShadow = true;
+            group.add(mesh);
+
+            const pt = randomArenaPoint(5.8, ARENA_RADIUS - 2.5);
+            group.position.set(pt.x, 0.82, pt.z);
+            scene.add(group);
+
+            wildEggs.push({
+                group,
+                mesh,
+                isGolden,
+                bobOffset: Math.random() * Math.PI * 2
+            });
+        }
+
+        function spawnBurnerZone(angle, dist) {
+            const group = new THREE.Group();
+            const radius = 2.6;
+            const grateGeo = new THREE.CylinderGeometry(radius, radius, 0.12, 32);
+            const grateMat = new THREE.MeshStandardMaterial({
+                color: 0x2b2d42,
+                roughness: 0.5
+            });
+            const grate = new THREE.Mesh(grateGeo, grateMat);
+            grate.position.y = 0.06;
+            group.add(grate);
+
+            const coilGeo = new THREE.TorusGeometry(radius * 0.62, 0.16, 12, 32);
+            const coilMat = new THREE.MeshStandardMaterial({
+                color: 0xff4d00,
+                emissive: 0xff2a00,
+                emissiveIntensity: 0.8
+            });
+            const coil = new THREE.Mesh(coilGeo, coilMat);
+            coil.rotation.x = Math.PI / 2;
+            coil.position.y = 0.14;
+            group.add(coil);
+
+            group.position.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
+            scene.add(group);
+
+            burnerZones.push({
+                group,
+                coilMat,
+                radius,
+                phase: Math.random() * Math.PI * 2,
+                isHot: true
+            });
+        }
+
+        function spawnRollingPin(orbitRadius, speed, length = 7.5) {
+            const group = new THREE.Group();
+
+            // Wooden barrel
+            const bodyGeo = new THREE.CylinderGeometry(0.75, 0.75, length, 24);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.5 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.rotation.z = Math.PI / 2;
+            body.castShadow = true;
+            group.add(body);
+
+            // Red handles on both ends
+            const handleGeo = new THREE.CylinderGeometry(0.3, 0.3, length + 2.4, 16);
+            const handleMat = new THREE.MeshStandardMaterial({ color: 0xe63946, roughness: 0.4 });
+            const handles = new THREE.Mesh(handleGeo, handleMat);
+            handles.rotation.z = Math.PI / 2;
+            group.add(handles);
+
+            scene.add(group);
+            rollingPins.push({
+                group,
+                body,
+                orbitRadius,
+                angle: Math.random() * Math.PI * 2,
+                speed,
+                halfLen: length / 2,
+                radius: 0.8
+            });
+        }
+
+        function spawnBubbleShieldPowerup() {
+            if (powerups.length > 0) return;
+            const group = new THREE.Group();
+            const geo = new THREE.OctahedronGeometry(0.75, 1);
+            const mat = new THREE.MeshStandardMaterial({
+                color: 0x72efdd,
+                emissive: 0x48bfe3,
+                emissiveIntensity: 0.5,
+                roughness: 0.15,
+                transparent: true,
+                opacity: 0.9
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            group.add(mesh);
+
+            const pt = randomArenaPoint(7, ARENA_RADIUS - 3.5);
+            group.position.set(pt.x, 1.1, pt.z);
+            scene.add(group);
+            powerups.push({ group, mesh, phase: 0 });
+        }
+
+        function spawnParticles(pos, color, count = 16) {
+            const geo = new THREE.DodecahedronGeometry(0.2, 0);
+            for (let i = 0; i < count; i++) {
+                const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.4 });
+                const m = new THREE.Mesh(geo, mat);
+                m.position.copy(pos);
+                const angle = Math.random() * Math.PI * 2;
+                const spd = 2 + Math.random() * 6;
+                const vel = new THREE.Vector3(
+                    Math.cos(angle) * spd,
+                    3 + Math.random() * 6,
+                    Math.sin(angle) * spd
+                );
+                scene.add(m);
+                particles.push({ mesh: m, vel, life: 0.65 + Math.random() * 0.35 });
+            }
+        }
+
+        // --- UI Updates & Toasts ---
+        const scoreEl = document.getElementById('score-val');
+        const waveEl = document.getElementById('wave-val');
+        const trailBadgeEl = document.getElementById('trail-badge');
+        const shellPips = document.querySelectorAll('.shell-pip');
+        const powerupBanner = document.getElementById('powerup-banner');
+        const toastEl = document.getElementById('toast');
+        let toastTimeout = null;
+
+        function showToast(text, color = '#ffd166') {
+            toastEl.textContent = text;
+            toastEl.style.color = color;
+            toastEl.classList.add('show');
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => toastEl.classList.remove('show'), 1400);
+        }
+
+        function updateHUD() {
+            scoreEl.textContent = score;
+            waveEl.textContent = wave;
+            trailBadgeEl.textContent = `Following: ${followingEggs.length}`;
+            shellPips.forEach((pip, idx) => {
+                pip.classList.toggle('cracked', idx >= health);
+            });
+            powerupBanner.style.display = shieldTimer > 0 ? 'block' : 'none';
+
+            // Update visual crack lines on player egg
+            const cracksToShow = (maxHealth - health) * 2;
+            crackGroup.children.forEach((c, i) => {
+                c.visible = i < cracksToShow;
+            });
+        }
+
+        // --- Setup / Reset Wave & Game ---
+        function clearEntities(list) {
+            list.forEach(item => scene.remove(item.group || item.mesh));
+            list.length = 0;
+        }
+
+        function buildWaveObstacles(waveNum) {
+            clearEntities(rollingPins);
+            clearEntities(burnerZones);
+
+            // Spawn rolling pins sweeping around the center nest
+            const pinCount = Math.min(1 + waveNum, 5);
+            for (let i = 0; i < pinCount; i++) {
+                const r = 8.5 + (i % 2) * 7.5;
+                const dir = i % 2 === 0 ? 1 : -1;
+                const spd = (0.75 + waveNum * 0.15 + i * 0.1) * dir;
+                spawnRollingPin(r, spd, 6.8);
+            }
+
+            // Spawn sizzling burner rings
+            const burnerCount = Math.min(2 + waveNum, 6);
+            for (let i = 0; i < burnerCount; i++) {
+                const angle = (i / burnerCount) * Math.PI * 2 + 0.4;
+                const dist = 12.5 + (i % 2) * 5;
+                spawnBurnerZone(angle, dist);
+            }
+        }
+
+        function startGame() {
+            sfx.init();
+            document.getElementById('overlay').style.display = 'none';
+
+            clearEntities(wildEggs);
+            clearEntities(followingEggs);
+            clearEntities(powerups);
+            clearEntities(particles);
+
+            score = 0;
+            wave = 1;
+            bankedEggsThisWave = 0;
+            health = maxHealth;
+            invulnTimer = 1.5;
+            shieldTimer = 0;
+            dashCooldown = 0;
+            dashActiveTimer = 0;
+
+            playerState.pos.set(0, 1.35, 6.5);
+            playerState.vel.set(0, 0, 0);
+            playerState.vy = 0;
+            playerState.isGrounded = true;
+
+            playerGroup.visible = true;
+            friedEggGroup.visible = false;
+            trailHistory.length = 0;
+
+            buildWaveObstacles(wave);
+            for (let i = 0; i < 7; i++) {
+                spawnWildEgg(i === 0);
+            }
+            spawnBubbleShieldPowerup();
+
+            updateHUD();
+            showToast('ROLL OUT! 🥚', '#ffd166');
+            gameActive = true;
+        }
+
+        function triggerGameOver(reason = 'SUNNY SIDE UP!') {
+            gameActive = false;
+            sfx.splat();
+            playerGroup.visible = false;
+
+            friedEggGroup.position.set(playerState.pos.x, 0.02, playerState.pos.z);
+            friedEggGroup.visible = true;
+            spawnParticles(playerState.pos, 0xfff8eb, 24);
+            spawnParticles(playerState.pos, 0xffaa00, 14);
+
+            const overlay = document.getElementById('overlay');
+            document.getElementById('modal-icon').textContent = '🍳';
+            document.getElementById('modal-title').textContent = reason;
+            document.getElementById('modal-desc').innerHTML = `Your shell cracked on <strong>Wave ${wave}</strong> with a final score of <strong>${score}</strong>! Ready to roll back into the kitchen?`;
+            document.getElementById('start-btn').textContent = 'PLAY AGAIN';
+            overlay.style.display = 'flex';
+        }
+
+        function damagePlayer() {
+            if (invulnTimer > 0) return;
+            if (shieldTimer > 0) {
+                shieldTimer = 0;
+                invulnTimer = 1.2;
+                sfx.hop();
+                spawnParticles(playerState.pos, 0x72efdd, 18);
+                showToast('BUBBLE SHIELD POPPED! 🫧', '#72efdd');
+                updateHUD();
+                return;
+            }
+
+            health--;
+            invulnTimer = 1.6;
+            sfx.crack();
+            spawnParticles(playerState.pos, 0xfff8eb, 18);
+
+            // Scatter half of following eggs back into the arena if hit
+            if (followingEggs.length > 0) {
+                const lostCount = Math.ceil(followingEggs.length / 2);
+                for (let i = 0; i < lostCount; i++) {
+                    const lost = followingEggs.pop();
+                    scene.remove(lost.group);
+                    spawnWildEgg(lost.isGolden);
+                }
+            }
+
+            updateHUD();
+            if (health <= 0) {
+                triggerGameOver('CRACKED & FRIED!');
+            } else {
+                showToast(health === 1 ? 'HAIRLINE CRACK! CAREFUL! ⚠️' : 'SHELL CRACKED! 💥', '#ff6b6b');
+            }
+        }
+
+        // --- Controls (Keyboard + Mobile Analog Stick) ---
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code === 'Space') doHop();
+            if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') doDash();
+        });
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        function doHop() {
+            if (!gameActive) return;
+            if (playerState.isGrounded) {
+                playerState.vy = 11.5;
+                playerState.isGrounded = false;
+                sfx.hop();
+            }
+        }
+
+        function doDash() {
+            if (!gameActive || dashCooldown > 0) return;
+            dashActiveTimer = 0.26;
+            dashCooldown = 1.1;
+            sfx.dash();
+            spawnParticles(playerState.pos, 0xffd166, 8);
+        }
+
+        // Mobile Joystick & Buttons
+        const joyZone = document.getElementById('joystick-zone');
+        const joyKnob = document.getElementById('joystick-knob');
+        let joyVec = { x: 0, y: 0 };
+        let joyPointerId = null;
+
+        function updateJoystick(clientX, clientY) {
+            const rect = joyZone.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            const maxR = rect.width / 2 - 16;
+            let dx = clientX - cx;
+            let dy = clientY - cy;
+            const dist = Math.hypot(dx, dy);
+            if (dist > maxR) {
+                dx = (dx / dist) * maxR;
+                dy = (dy / dist) * maxR;
+            }
+            joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            joyVec.x = dx / maxR;
+            joyVec.y = dy / maxR;
+        }
+
+        joyZone.addEventListener('pointerdown', (e) => {
+            joyPointerId = e.pointerId;
+            joyZone.setPointerCapture(e.pointerId);
+            updateJoystick(e.clientX, e.clientY);
+        });
+        joyZone.addEventListener('pointermove', (e) => {
+            if (e.pointerId === joyPointerId) {
+                updateJoystick(e.clientX, e.clientY);
+            }
+        });
+        const resetJoystick = (e) => {
+            if (e.pointerId === joyPointerId) {
+                joyPointerId = null;
+                joyKnob.style.transform = 'translate(-50%, -50%)';
+                joyVec.x = 0;
+                joyVec.y = 0;
+            }
+        };
+        joyZone.addEventListener('pointerup', resetJoystick);
+        joyZone.addEventListener('pointercancel', resetJoystick);
+
+        document.getElementById('jump-btn').addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            doHop();
+        });
+        document.getElementById('dash-btn').addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            doDash();
+        });
+        document.getElementById('start-btn').addEventListener('click', startGame);
+
+        // --- Main Animation & Physics Loop ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+
+            // Subtle nest pulse
+            beaconRing.scale.setScalar(1 + Math.sin(elapsed * 4) * 0.05);
+
+            if (gameActive) {
+                if (invulnTimer > 0) invulnTimer -= dt;
+                if (dashCooldown > 0) dashCooldown -= dt;
+                if (dashActiveTimer > 0) dashActiveTimer -= dt;
+                if (shieldTimer > 0) {
+                    shieldTimer -= dt;
+                    if (shieldTimer <= 0) updateHUD();
+                }
+
+                // Input vector
+                let ix = joyVec.x;
+                let iz = joyVec.y;
+                if (keys['KeyW'] || keys['ArrowUp']) iz -= 1;
+                if (keys['KeyS'] || keys['ArrowDown']) iz += 1;
+                if (keys['KeyA'] || keys['ArrowLeft']) ix -= 1;
+                if (keys['KeyD'] || keys['ArrowRight']) ix += 1;
+
+                const inputLen = Math.hypot(ix, iz);
+                if (inputLen > 1) {
+                    ix /= inputLen;
+                    iz /= inputLen;
+                }
+
+                const accel = dashActiveTimer > 0 ? 55 : 28;
+                const maxSpeed = dashActiveTimer > 0 ? 21 : 11.5;
+
+                playerState.vel.x += ix * accel * dt;
+                playerState.vel.z += iz * accel * dt;
+
+                // Friction
+                const damping = Math.pow(0.06, dt);
+                playerState.vel.x *= damping;
+                playerState.vel.z *= damping;
+
+                const spd = Math.hypot(playerState.vel.x, playerState.vel.z);
+                if (spd > maxSpeed) {
+                    playerState.vel.x = (playerState.vel.x / spd) * maxSpeed;
+                    playerState.vel.z = (playerState.vel.z / spd) * maxSpeed;
+                }
+
+                playerState.pos.x += playerState.vel.x * dt;
+                playerState.pos.z += playerState.vel.z * dt;
+
+                // Gravity & Hop
+                playerState.pos.y += playerState.vy * dt;
+                playerState.vy -= 28 * dt;
+                if (playerState.pos.y <= 1.35) {
+                    playerState.pos.y = 1.35;
+                    playerState.vy = 0;
+                    playerState.isGrounded = true;
+                }
+
+                // Arena edge check (bounce safely unless dashing hard off rim, or keep inside with rim bump)
+                const distFromCenter = Math.hypot(playerState.pos.x, playerState.pos.z);
+                if (distFromCenter > ARENA_RADIUS - 1.1) {
+                    const nx = playerState.pos.x / distFromCenter;
+                    const nz = playerState.pos.z / distFromCenter;
+                    playerState.pos.x = nx * (ARENA_RADIUS - 1.1);
+                    playerState.pos.z = nz * (ARENA_RADIUS - 1.1);
+                    // Bounce velocity inward
+                    const dot = playerState.vel.x * nx + playerState.vel.z * nz;
+                    if (dot > 0) {
+                        playerState.vel.x -= 1.7 * dot * nx;
+                        playerState.vel.z -= 1.7 * dot * nz;
+                        sfx.hop();
+                    }
+                }
+
+                // Update Player Visuals & Egg Characteristic Wobble
+                playerGroup.position.copy(playerState.pos);
+                if (spd > 0.25) {
+                    playerState.facingAngle = Math.atan2(playerState.vel.x, playerState.vel.z);
+                    playerState.rollPhase += spd * dt * 2.2;
+                }
+                eggMeshGroup.rotation.y = playerState.facingAngle;
+                // Ovoid wobble: pitch forward with speed + side-to-side waddle
+                eggMeshGroup.rotation.x = Math.min(spd * 0.045, 0.45);
+                eggMeshGroup.rotation.z = Math.sin(playerState.rollPhase * 2) * Math.min(spd * 0.035, 0.32);
+
+                // Blink when invulnerable
+                playerEggMesh.visible = invulnTimer <= 0 || Math.floor(elapsed * 16) % 2 === 0;
+                shieldMesh.visible = shieldTimer > 0;
+                shieldMesh.rotation.y += dt * 1.5;
+
+                // Record breadcrumb trail for rescued mini-eggs
+                trailHistory.unshift(playerState.pos.clone());
+                if (trailHistory.length > MAX_TRAIL_POINTS) trailHistory.pop();
+
+                // Update following mini-eggs in conga line
+                followingEggs.forEach((fEgg, idx) => {
+                    const trailIndex = Math.min((idx + 1) * 10, trailHistory.length - 1);
+                    const target = trailHistory[trailIndex] || playerState.pos;
+                    fEgg.group.position.x = THREE.MathUtils.lerp(fEgg.group.position.x, target.x, dt * 12);
+                    fEgg.group.position.z = THREE.MathUtils.lerp(fEgg.group.position.z, target.z, dt * 12);
+                    fEgg.group.position.y = 0.72 + Math.abs(Math.sin(elapsed * 8 + idx)) * 0.28;
+                    fEgg.group.rotation.z = Math.sin(elapsed * 10 + idx) * 0.2;
+                });
+
+                // Check if player reached Center Nest to bank following eggs!
+                if (distFromCenter < NEST_RADIUS && followingEggs.length > 0) {
+                    const count = followingEggs.length;
+                    let goldenBonus = 0;
+                    followingEggs.forEach(e => {
+                        if (e.isGolden) goldenBonus += 150;
+                        spawnParticles(e.group.position, 0xffd166, 10);
+                        scene.remove(e.group);
+                    });
+                    followingEggs.length = 0;
+
+                    // Combo multiplier!
+                    const earned = count * 100 * count + goldenBonus;
+                    score += earned;
+                    bankedEggsThisWave += count;
+
+                    // Banking 3+ eggs at once heals 1 shell crack!
+                    if (count >= 3 && health < maxHealth) {
+                        health++;
+                        showToast(`+${earned} PTS & SHELL HEALED! 🪺💖`, '#72efdd');
+                    } else {
+                        showToast(count > 1 ? `${count}x NEST COMBO! +${earned} 🪺` : `EGG RESCUED! +${earned} 🐣`, '#ffd166');
+                    }
+
+                    sfx.bank();
+
+                    // Spawn replacements
+                    for (let i = 0; i < count; i++) {
+                        spawnWildEgg(Math.random() < 0.22);
+                    }
+
+                    // Wave progression check
+                    if (bankedEggsThisWave >= 5 + wave * 2) {
+                        wave++;
+                        bankedEggsThisWave = 0;
+                        buildWaveObstacles(wave);
+                        spawnBubbleShieldPowerup();
+                        showToast(`WAVE ${wave}! KITCHEN HEATING UP! 🔥`, '#ff9f1c');
+                    }
+                    updateHUD();
+                }
+
+                // Check Wild Eggs pickup
+                for (let i = wildEggs.length - 1; i >= 0; i--) {
+                    const w = wildEggs[i];
+                    w.mesh.position.y = Math.sin(elapsed * 4 + w.bobOffset) * 0.18;
+                    w.mesh.rotation.y += dt * 1.8;
+
+                    const dEgg = Math.hypot(playerState.pos.x - w.group.position.x, playerState.pos.z - w.group.position.z);
+                    if (dEgg < 1.65) {
+                        wildEggs.splice(i, 1);
+                        followingEggs.push(w);
+                        sfx.pickup(followingEggs.length);
+                        spawnParticles(w.group.position, 0xfff8eb, 8);
+                        updateHUD();
+                    }
+                }
+
+                // Check Bubble Shield Powerups
+                for (let i = powerups.length - 1; i >= 0; i--) {
+                    const p = powerups[i];
+                    p.mesh.rotation.y += dt * 2.5;
+                    p.mesh.rotation.x += dt * 1.5;
+                    const dp = Math.hypot(playerState.pos.x - p.group.position.x, playerState.pos.z - p.group.position.z);
+                    if (dp < 1.8) {
+                        shieldTimer = 10.0;
+                        scene.remove(p.group);
+                        powerups.splice(i, 1);
+                        sfx.bank();
+                        showToast('BUBBLE WRAP SHIELD! 🫧', '#72efdd');
+                        updateHUD();
+                    }
+                }
+
+                // Update & Check Rolling Pins
+                rollingPins.forEach(pin => {
+                    pin.angle += pin.speed * dt;
+                    const cx = Math.cos(pin.angle) * pin.orbitRadius;
+                    const cz = Math.sin(pin.angle) * pin.orbitRadius;
+                    pin.group.position.set(cx, 0.8, cz);
+                    // Orient pin radially outward from center
+                    pin.group.rotation.y = -pin.angle;
+                    pin.body.rotation.x += pin.speed * dt * 6;
+
+                    // Segment collision with player (if player hasn't hopped over it)
+                    if (playerState.pos.y < 2.15) {
+                        const dirX = Math.cos(pin.angle);
+                        const dirZ = Math.sin(pin.angle);
+                        const relX = playerState.pos.x - cx;
+                        const relZ = playerState.pos.z - cz;
+                        const proj = Math.max(-pin.halfLen, Math.min(pin.halfLen, relX * dirX + relZ * dirZ));
+                        const closestX = cx + dirX * proj;
+                        const closestZ = cz + dirZ * proj;
+                        const distToPin = Math.hypot(playerState.pos.x - closestX, playerState.pos.z - closestZ);
+                        if (distToPin < pin.radius + 0.78) {
+                            damagePlayer();
+                        }
+                    }
+                });
+
+                // Update & Check Sizzling Burners
+                burnerZones.forEach(b => {
+                    const cycle = Math.sin(elapsed * 2.2 + b.phase);
+                    b.isHot = cycle > -0.2;
+                    b.coilMat.emissiveIntensity = b.isHot ? (0.75 + Math.sin(elapsed * 16) * 0.25) : 0.08;
+                    b.coilMat.color.setHex(b.isHot ? 0xff4d00 : 0x4a3b3b);
+
+                    if (b.isHot && playerState.pos.y < 1.7) {
+                        const db = Math.hypot(playerState.pos.x - b.group.position.x, playerState.pos.z - b.group.position.z);
+                        if (db < b.radius - 0.2) {
+                            damagePlayer();
+                        }
+                    }
+                });
+
+                // Smooth Camera Follow
+                const camTargetX = playerState.pos.x * 0.45;
+                const camTargetZ = playerState.pos.z * 0.45 + 22;
+                camera.position.x = THREE.MathUtils.lerp(camera.position.x, camTargetX, dt * 4);
+                camera.position.z = THREE.MathUtils.lerp(camera.position.z, camTargetZ, dt * 4);
+                camera.lookAt(playerState.pos.x * 0.3, 0, playerState.pos.z * 0.3);
+            }
+
+            // Update Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.life -= dt;
+                p.mesh.position.addScaledVector(p.vel, dt);
+                p.vel.y -= 18 * dt;
+                p.mesh.rotation.x += dt * 5;
+                p.mesh.scale.setScalar(Math.max(p.life, 0.01));
+                if (p.life <= 0) {
+                    scene.remove(p.mesh);
+                    particles.splice(i, 1);
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
