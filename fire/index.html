@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FIRE: Keeper of the Ember 3D</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #07050c;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+        }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            right: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+            z-index: 10;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .hud-panel {
+            background: rgba(15, 10, 22, 0.82);
+            backdrop-filter: blur(8px);
+            border: 2px solid rgba(255, 107, 0, 0.45);
+            border-radius: 16px;
+            padding: 12px 18px;
+            color: #fff3e6;
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 0 18px rgba(255, 85, 0, 0.15);
+            min-width: 190px;
+        }
+
+        .hud-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.6px;
+            color: #ff9e44;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .score-big {
+            font-size: 28px;
+            font-weight: 900;
+            color: #ffffff;
+            text-shadow: 0 0 12px rgba(255, 115, 0, 0.8);
+        }
+
+        .sub-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #ffd0a6;
+        }
+
+        /* Heat Bar */
+        #heat-bar-wrap {
+            width: 220px;
+            height: 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 999px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 140, 0, 0.5);
+            margin-top: 6px;
+            position: relative;
+        }
+
+        #heat-bar-fill {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #ff3300, #ff9900, #ffee55);
+            border-radius: 999px;
+            transition: width 0.12s ease-out;
+            box-shadow: 0 0 12px #ff6600;
+        }
+
+        #heat-bar-fill.blue-flame {
+            background: linear-gradient(90deg, #0077ff, #00e5ff, #ffffff);
+            box-shadow: 0 0 16px #00e5ff;
+        }
+
+        #brazier-pips {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+            font-size: 20px;
+        }
+
+        .brazier-pip {
+            opacity: 0.25;
+            filter: grayscale(1);
+            transition: transform 0.25s, opacity 0.25s, filter 0.25s;
+        }
+        .brazier-pip.lit {
+            opacity: 1;
+            filter: none;
+            transform: scale(1.15);
+            text-shadow: 0 0 10px #ff8800;
+        }
+
+        /* Center Banner Toast */
+        #banner {
+            position: absolute;
+            top: 22%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.85);
+            font-size: 34px;
+            font-weight: 900;
+            color: #ffae00;
+            text-shadow: 0 4px 18px rgba(0,0,0,0.9), 0 0 24px rgba(255, 94, 0, 0.85);
+            pointer-events: none;
+            opacity: 0;
+            transition: transform 0.25s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.25s;
+            z-index: 15;
+            text-align: center;
+            white-space: nowrap;
+        }
+        #banner.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        /* Start & Game Over Overlay */
+        #overlay {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(35, 14, 8, 0.88), rgba(6, 4, 12, 0.97));
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 30;
+            padding: 20px;
+            text-align: center;
+            color: #fff3e6;
+        }
+
+        .modal-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 115, 0, 0.55);
+            border-radius: 24px;
+            padding: 32px 28px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 35px rgba(255, 80, 0, 0.25);
+            backdrop-filter: blur(12px);
+        }
+
+        .flame-logo {
+            font-size: 64px;
+            line-height: 1;
+            margin-bottom: 10px;
+            display: inline-block;
+            animation: pulseFlame 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulseFlame {
+            0%, 100% { transform: scale(1) rotate(-4deg); filter: drop-shadow(0 0 12px #ff5500); }
+            50% { transform: scale(1.12) rotate(4deg); filter: drop-shadow(0 0 24px #ffbb00); }
+        }
+
+        .modal-card h1 {
+            margin: 0 0 8px 0;
+            font-size: 38px;
+            letter-spacing: 1.5px;
+            color: #ffae42;
+            text-shadow: 0 3px 16px rgba(255, 90, 0, 0.65);
+        }
+
+        .modal-card p {
+            color: #e6cfc2;
+            font-size: 15px;
+            line-height: 1.5;
+            margin: 0 0 18px 0;
+        }
+
+        .guide-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            text-align: left;
+            margin-bottom: 24px;
+            font-size: 13px;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 140, 0, 0.2);
+        }
+
+        .guide-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .guide-icon { font-size: 20px; }
+
+        .ignite-btn {
+            background: linear-gradient(135deg, #ffba08, #f48c06, #dc2f02);
+            color: #fff;
+            border: none;
+            padding: 15px 44px;
+            font-size: 20px;
+            font-weight: 900;
+            border-radius: 999px;
+            cursor: pointer;
+            box-shadow: 0 8px 24px rgba(220, 47, 2, 0.55);
+            transition: transform 0.15s, box-shadow 0.15s;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+        .ignite-btn:hover {
+            transform: translateY(-2px) scale(1.04);
+            box-shadow: 0 12px 30px rgba(255, 140, 0, 0.75);
+        }
+        .ignite-btn:active { transform: scale(0.96); }
+
+        #controls-hint {
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 235, 215, 0.75);
+            font-size: 13px;
+            background: rgba(0, 0, 0, 0.55);
+            padding: 7px 18px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 120, 0, 0.3);
+            pointer-events: none;
+            z-index: 10;
+            white-space: nowrap;
+        }
+
+        /* Mobile Controls */
+        #mobile-controls {
+            display: none;
+            position: absolute;
+            bottom: 24px;
+            left: 0;
+            width: 100%;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        @media (pointer: coarse), (max-width: 900px) {
+            #mobile-controls { display: block; }
+            #controls-hint { display: none; }
+        }
+
+        #joystick-zone {
+            position: absolute;
+            left: 28px;
+            bottom: 10px;
+            width: 130px;
+            height: 130px;
+            background: rgba(255, 120, 0, 0.12);
+            border: 2px solid rgba(255, 145, 0, 0.55);
+            border-radius: 50%;
+            pointer-events: auto;
+            touch-action: none;
+        }
+
+        #joystick-knob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 54px;
+            height: 54px;
+            background: radial-gradient(circle at 30% 30%, #ffee77, #ff5500);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 14px rgba(255, 85, 0, 0.8);
+            pointer-events: none;
+        }
+
+        #action-buttons {
+            position: absolute;
+            right: 28px;
+            bottom: 16px;
+            display: flex;
+            gap: 14px;
+            pointer-events: auto;
+        }
+
+        .act-btn {
+            width: 76px;
+            height: 76px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.75);
+            font-weight: 900;
+            font-size: 13px;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+            cursor: pointer;
+            touch-action: none;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+        }
+        #fireball-btn {
+            background: linear-gradient(135deg, #ff9e00, #e85d04);
+        }
+        #nova-btn {
+            background: linear-gradient(135deg, #00b4d8, #0077b6);
+        }
+        .act-btn:active { transform: scale(0.9); }
+    </style>
+</head>
+<body>
+
+    <div id="hud">
+        <div class="hud-panel">
+            <div class="hud-label">Inferno Score</div>
+            <div id="score-val" class="score-big">0</div>
+            <div class="sub-row">
+                <span>Night <strong id="wave-val">1</strong></span>
+                <span id="state-badge" style="color:#ffae42;">🔥 EMBER SPIRIT</span>
+            </div>
+        </div>
+
+        <div class="hud-panel">
+            <div class="hud-label">Core Temperature (<span id="heat-pct">100%</span>)</div>
+            <div id="heat-bar-wrap">
+                <div id="heat-bar-fill"></div>
+            </div>
+            <div class="sub-row" style="margin-top:8px;">
+                <span>Braziers Lit:</span>
+                <div id="brazier-pips">
+                    <span class="brazier-pip">🔥</span>
+                    <span class="brazier-pip">🔥</span>
+                    <span class="brazier-pip">🔥</span>
+                    <span class="brazier-pip">🔥</span>
+                    <span class="brazier-pip">🔥</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="banner">BRAZIER IGNITED!</div>
+
+    <div id="controls-hint">
+        WASD / Arrows to Glide • SPACE / Click to Cast Fireball • SHIFT for Flame Nova Dash • Light all 5 Braziers!
+    </div>
+
+    <div id="mobile-controls">
+        <div id="joystick-zone">
+            <div id="joystick-knob"></div>
+        </div>
+        <div id="action-buttons">
+            <div id="nova-btn" class="act-btn">💥<span>NOVA</span></div>
+            <div id="fireball-btn" class="act-btn">☄️<span>SHOOT</span></div>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <div class="modal-card">
+            <div class="flame-logo" id="modal-icon">🔥</div>
+            <h1 id="modal-title">FIRE: ETERNAL EMBER</h1>
+            <p id="modal-desc">You are a living Flame Spirit in an obsidian courtyard besieged by Eternal Winter. Devour kindling to stay blazing, hurl fireballs at encroaching Frost Wraiths, and ignite all <strong>5 Ancient Braziers</strong> to unleash a Solar Supernova!</p>
+            <div class="guide-grid">
+                <div class="guide-item"><span class="guide-icon">🪵</span><span>Eat Kindling &amp; Coal to fuel your Heat</span></div>
+                <div class="guide-item"><span class="guide-icon">🏮</span><span>Touch all 5 Stone Braziers to clear the Night</span></div>
+                <div class="guide-item"><span class="guide-icon">👻</span><span>Blast Frost Wraiths before they douse Braziers</span></div>
+                <div class="guide-item"><span class="guide-icon">⚡</span><span>85%+ Heat unlocks Blue Plasma Overcharge!</span></div>
+            </div>
+            <button class="ignite-btn" id="start-btn">IGNITE THE FLAME</button>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- Procedural Web Audio Sound Engine ---
+        class FlameAudio {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+            tone(freq, type, duration, vol = 0.16, slideTo = null) {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, now);
+                if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, now + duration);
+                gain.gain.setValueAtTime(vol, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + duration);
+            }
+            fireball() {
+                this.tone(280, 'sawtooth', 0.18, 0.16, 85);
+                this.tone(520, 'triangle', 0.12, 0.12, 160);
+            }
+            fuelPickup(isCoal) {
+                const base = isCoal ? 540 : 420;
+                this.tone(base, 'sine', 0.14, 0.18, base * 1.45);
+            }
+            igniteBrazier() {
+                [330, 440, 554.37, 659.25].forEach((f, i) => {
+                    setTimeout(() => this.tone(f, 'triangle', 0.25, 0.2, f * 1.1), i * 55);
+                });
+            }
+            supernova() {
+                [440, 554.37, 659.25, 880, 1108.73].forEach((f, i) => {
+                    setTimeout(() => this.tone(f, 'sawtooth', 0.35, 0.22, f * 1.15), i * 70);
+                });
+            }
+            novaDash() {
+                this.tone(180, 'sawtooth', 0.32, 0.24, 620);
+            }
+            shatterWraith() {
+                this.tone(920, 'sine', 0.15, 0.18, 260);
+                setTimeout(() => this.tone(1240, 'triangle', 0.12, 0.14, 480), 40);
+            }
+            hiss() {
+                this.tone(150, 'sawtooth', 0.25, 0.22, 48);
+            }
+        }
+        const sfx = new FlameAudio();
+
+        // --- Scene, Camera, Renderer ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x07050c);
+        scene.fog = new THREE.FogExp2(0x07050c, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(56, window.innerWidth / window.innerHeight, 0.1, 220);
+        camera.position.set(0, 25, 26);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // Ambient moonlight (dim cold blue so dynamic fire lights pop!)
+        const ambientLight = new THREE.HemisphereLight(0x223355, 0x09060e, 0.55);
+        scene.add(ambientLight);
+
+        // --- Obsidian Courtyard Arena ---
+        const ARENA_RADIUS = 26;
+        const arenaGroup = new THREE.Group();
+        scene.add(arenaGroup);
+
+        const floorGeo = new THREE.CylinderGeometry(ARENA_RADIUS, ARENA_RADIUS * 1.04, 3, 64);
+        const floorMat = new THREE.MeshStandardMaterial({
+            color: 0x181424,
+            roughness: 0.45,
+            metalness: 0.25
+        });
+        const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+        floorMesh.position.y = -1.5;
+        floorMesh.receiveShadow = true;
+        arenaGroup.add(floorMesh);
+
+        // Glowing Magma Rune Rings embedded in the stone courtyard
+        const runeRings = [];
+        [7, 15, 22].forEach((r, idx) => {
+            const rGeo = new THREE.RingGeometry(r - 0.14, r + 0.14, 64);
+            const rMat = new THREE.MeshBasicMaterial({
+                color: idx === 1 ? 0xff6b00 : 0x5c2c16,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.55
+            });
+            const rMesh = new THREE.Mesh(rGeo, rMat);
+            rMesh.rotation.x = -Math.PI / 2;
+            rMesh.position.y = 0.03;
+            arenaGroup.add(rMesh);
+            runeRings.push(rMat);
+        });
+
+        // Outer Obsidian Pillars
+        const pillarCount = 16;
+        for (let i = 0; i < pillarCount; i++) {
+            const ang = (i / pillarCount) * Math.PI * 2;
+            const pGeo = new THREE.BoxGeometry(1.4, 4.5 + (i % 2) * 1.8, 1.4);
+            const pMat = new THREE.MeshStandardMaterial({ color: 0x100d19, roughness: 0.6 });
+            const p = new THREE.Mesh(pGeo, pMat);
+            p.position.set(Math.cos(ang) * (ARENA_RADIUS - 0.5), 2, Math.sin(ang) * (ARENA_RADIUS - 0.5));
+            p.rotation.y = -ang;
+            p.castShadow = true;
+            p.receiveShadow = true;
+            arenaGroup.add(p);
+        }
+
+        // --- Player: Living 3D Flame Spirit ---
+        const playerGroup = new THREE.Group();
+        scene.add(playerGroup);
+
+        // Outer Flame Shell
+        const outerFlameGeo = new THREE.ConeGeometry(1.15, 2.7, 16);
+        const outerFlameMat = new THREE.MeshStandardMaterial({
+            color: 0xff4500,
+            emissive: 0xff3300,
+            emissiveIntensity: 0.9,
+            roughness: 0.2,
+            transparent: true,
+            opacity: 0.88
+        });
+        const outerFlame = new THREE.Mesh(outerFlameGeo, outerFlameMat);
+        outerFlame.position.y = 1.35;
+        playerGroup.add(outerFlame);
+
+        // Inner White-Hot Core
+        const innerCoreGeo = new THREE.OctahedronGeometry(0.72, 2);
+        const innerCoreMat = new THREE.MeshBasicMaterial({ color: 0xfff3b0 });
+        const innerCore = new THREE.Mesh(innerCoreGeo, innerCoreMat);
+        innerCore.position.y = 1.05;
+        playerGroup.add(innerCore);
+
+        // Orbiting Ember Satellites
+        const emberOrbits = [];
+        for (let i = 0; i < 4; i++) {
+            const eMesh = new THREE.Mesh(
+                new THREE.OctahedronGeometry(0.22, 0),
+                new THREE.MeshBasicMaterial({ color: 0xffbe0b })
+            );
+            playerGroup.add(eMesh);
+            emberOrbits.push({ mesh: eMesh, phase: (i / 4) * Math.PI * 2 });
+        }
+
+        // Fierce Glowing Eyes on the Flame Spirit
+        const eyeGeo = new THREE.SphereGeometry(0.14, 10, 10);
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+        leftEye.position.set(-0.34, 1.15, 0.85);
+        const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+        rightEye.position.set(0.34, 1.15, 0.85);
+        playerGroup.add(leftEye, rightEye);
+
+        // Player Dynamic PointLight (illuminates the dark temple!)
+        const playerLight = new THREE.PointLight(0xff7700, 5, 28, 1.5);
+        playerLight.position.set(0, 2.4, 0);
+        playerLight.castShadow = true;
+        playerGroup.add(playerLight);
+
+        // --- 5 Ancient Stone Braziers ---
+        const BRAZIER_COUNT = 5;
+        const BRAZIER_RADIUS = 15.5;
+        const braziers = [];
+
+        function createBraziers() {
+            braziers.forEach(b => scene.remove(b.group));
+            braziers.length = 0;
+
+            for (let i = 0; i < BRAZIER_COUNT; i++) {
+                const angle = (i / BRAZIER_COUNT) * Math.PI * 2 - Math.PI / 2;
+                const bx = Math.cos(angle) * BRAZIER_RADIUS;
+                const bz = Math.sin(angle) * BRAZIER_RADIUS;
+
+                const group = new THREE.Group();
+                group.position.set(bx, 0, bz);
+
+                // Stone Pedestal Bowl
+                const baseGeo = new THREE.CylinderGeometry(1.45, 1.8, 1.6, 12);
+                const baseMat = new THREE.MeshStandardMaterial({ color: 0x2b2638, roughness: 0.7 });
+                const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+                baseMesh.position.y = 0.8;
+                baseMesh.castShadow = true;
+                baseMesh.receiveShadow = true;
+                group.add(baseMesh);
+
+                const rimGeo = new THREE.TorusGeometry(1.4, 0.25, 10, 24);
+                const rimMat = new THREE.MeshStandardMaterial({ color: 0x4a405e, roughness: 0.5 });
+                const rim = new THREE.Mesh(rimGeo, rimMat);
+                rim.rotation.x = Math.PI / 2;
+                rim.position.y = 1.6;
+                group.add(rim);
+
+                // Brazier Flame Cone (hidden when unlit)
+                const bFlameGeo = new THREE.ConeGeometry(1.1, 2.6, 14);
+                const bFlameMat = new THREE.MeshBasicMaterial({ color: 0xff8800 });
+                const bFlame = new THREE.Mesh(bFlameGeo, bFlameMat);
+                bFlame.position.y = 2.6;
+                bFlame.visible = false;
+                group.add(bFlame);
+
+                // Brazier Point Light
+                const bLight = new THREE.PointLight(0xff6600, 0, 18, 1.6);
+                bLight.position.set(0, 3.2, 0);
+                group.add(bLight);
+
+                scene.add(group);
+                braziers.push({
+                    group,
+                    bFlame,
+                    bLight,
+                    lit: false,
+                    pos: new THREE.Vector3(bx, 0, bz)
+                });
+            }
+        }
+        createBraziers();
+
+        // --- Game State ---
+        let gameActive = false;
+        let score = 0;
+        let wave = 1;
+        let heat = 100; // 0 to 100
+        let fireballCooldown = 0;
+        let novaCooldown = 0;
+        let novaActiveTimer = 0;
+
+        const playerState = {
+            pos: new THREE.Vector3(0, 0, 0),
+            vel: new THREE.Vector3(0, 0, 0),
+            aimDir: new THREE.Vector3(0, 0, 1)
+        };
+
+        const fuels = [];       // Kindling wood & Coal chunks
+        const fireballs = [];   // Player projectiles
+        const wraiths = [];     // Frost Wraith enemies
+        const rainClouds = [];  // Moving rain hazards
+        const particles = [];   // Ember & ice shard particles
+        const shockwaves = [];  // Expanding ring meshes
+
+        // --- Entity Spawners ---
+        function randomArenaPos(minR = 3, maxR = ARENA_RADIUS - 3.5) {
+            const ang = Math.random() * Math.PI * 2;
+            const r = minR + Math.random() * (maxR - minR);
+            return new THREE.Vector3(Math.cos(ang) * r, 0, Math.sin(ang) * r);
+        }
+
+        function spawnFuel(isCoal = false) {
+            const group = new THREE.Group();
+            if (isCoal) {
+                // Glowing Magma Coal Chunk
+                const geo = new THREE.DodecahedronGeometry(0.65, 0);
+                const mat = new THREE.MeshStandardMaterial({
+                    color: 0x221a1a,
+                    emissive: 0xff4800,
+                    emissiveIntensity: 0.75,
+                    roughness: 0.4
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                group.add(mesh);
+            } else {
+                // Crossed Dry Kindling Logs
+                const logGeo = new THREE.CylinderGeometry(0.22, 0.22, 1.5, 10);
+                const logMat = new THREE.MeshStandardMaterial({
+                    color: 0xb07d4f,
+                    emissive: 0x552200,
+                    emissiveIntensity: 0.25,
+                    roughness: 0.7
+                });
+                const log1 = new THREE.Mesh(logGeo, logMat);
+                log1.rotation.z = Math.PI / 2;
+                log1.rotation.y = 0.4;
+                const log2 = new THREE.Mesh(logGeo, logMat);
+                log2.rotation.z = Math.PI / 2;
+                log2.rotation.y = -0.5;
+                log2.position.y = 0.2;
+                group.add(log1, log2);
+            }
+
+            const pt = randomArenaPos(2.5, ARENA_RADIUS - 3.5);
+            group.position.set(pt.x, 0.55, pt.z);
+            scene.add(group);
+
+            fuels.push({
+                group,
+                isCoal,
+                heatGain: isCoal ? 26 : 15,
+                phase: Math.random() * Math.PI * 2
+            });
+        }
+
+        function spawnFrostWraith() {
+            const group = new THREE.Group();
+
+            // Icy Crystalline Body
+            const bodyGeo = new THREE.OctahedronGeometry(0.95, 0);
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color: 0x72efdd,
+                emissive: 0x0096c7,
+                emissiveIntensity: 0.55,
+                roughness: 0.15,
+                transparent: true,
+                opacity: 0.88
+            });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.scale.set(0.85, 1.45, 0.85);
+            body.position.y = 1.4;
+            group.add(body);
+
+            // Orbiting Frost Shards
+            const crownGeo = new THREE.TorusGeometry(1.05, 0.1, 8, 24);
+            const crownMat = new THREE.MeshBasicMaterial({ color: 0xade8f4 });
+            const crown = new THREE.Mesh(crownGeo, crownMat);
+            crown.rotation.x = Math.PI / 2;
+            crown.position.y = 1.1;
+            group.add(crown);
+
+            const ang = Math.random() * Math.PI * 2;
+            const spawnR = ARENA_RADIUS - 2.0;
+            group.position.set(Math.cos(ang) * spawnR, 0, Math.sin(ang) * spawnR);
+            scene.add(group);
+
+            wraiths.push({
+                group,
+                body,
+                crown,
+                hp: 1,
+                speed: 3.4 + Math.min(wave * 0.45, 4.0) + Math.random() * 0.8
+            });
+        }
+
+        function spawnRainCloud() {
+            const group = new THREE.Group();
+            const radius = 2.8;
+
+            // Ground puddle hazard ring
+            const zoneGeo = new THREE.CircleGeometry(radius, 32);
+            const zoneMat = new THREE.MeshBasicMaterial({
+                color: 0x0077b6,
+                transparent: true,
+                opacity: 0.32,
+                side: THREE.DoubleSide
+            });
+            const zone = new THREE.Mesh(zoneGeo, zoneMat);
+            zone.rotation.x = -Math.PI / 2;
+            zone.position.y = 0.05;
+            group.add(zone);
+
+            // Overhead storm cloud puffs
+            const cloudMat = new THREE.MeshStandardMaterial({ color: 0x3d5a80, roughness: 0.8 });
+            for (let i = 0; i < 3; i++) {
+                const puff = new THREE.Mesh(new THREE.SphereGeometry(1.2 - i * 0.15, 12, 12), cloudMat);
+                puff.position.set((i - 1) * 0.9, 5.5 + (i % 2) * 0.3, 0);
+                group.add(puff);
+            }
+
+            const pt = randomArenaPos(5, ARENA_RADIUS - 5);
+            group.position.set(pt.x, 0, pt.z);
+            scene.add(group);
+
+            const velAngle = Math.random() * Math.PI * 2;
+            rainClouds.push({
+                group,
+                radius,
+                vx: Math.cos(velAngle) * (2.2 + wave * 0.25),
+                vz: Math.sin(velAngle) * (2.2 + wave * 0.25)
+            });
+        }
+
+        function spawnBurst(pos, color, count = 16, speedScale = 1) {
+            const geo = new THREE.OctahedronGeometry(0.22, 0);
+            for (let i = 0; i < count; i++) {
+                const mat = new THREE.MeshBasicMaterial({ color });
+                const m = new THREE.Mesh(geo, mat);
+                m.position.copy(pos);
+                m.position.y += 0.9;
+                const ang = Math.random() * Math.PI * 2;
+                const spd = (2.5 + Math.random() * 6.5) * speedScale;
+                const vel = new THREE.Vector3(
+                    Math.cos(ang) * spd,
+                    2.5 + Math.random() * 6,
+                    Math.sin(ang) * spd
+                );
+                scene.add(m);
+                particles.push({ mesh: m, vel, life: 0.55 + Math.random() * 0.35 });
+            }
+        }
+
+        function spawnShockwave(pos, color = 0xff7700, maxRadius = 8) {
+            const geo = new THREE.RingGeometry(0.5, 1.1, 48);
+            const mat = new THREE.MeshBasicMaterial({
+                color,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.9
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.set(pos.x, 0.25, pos.z);
+            scene.add(mesh);
+            shockwaves.push({ mesh, mat, scale: 1, maxRadius });
+        }
+
+        // --- Player Actions: Cast Fireball & Flame Nova ---
+        function castFireball(targetPoint = null) {
+            if (!gameActive || fireballCooldown > 0) return;
+            const isOvercharged = heat >= 85;
+            fireballCooldown = isOvercharged ? 0.16 : 0.26;
+
+            let dir = playerState.aimDir.clone();
+            if (targetPoint) {
+                dir.subVectors(targetPoint, playerState.pos);
+                dir.y = 0;
+                if (dir.lengthSq() > 0.01) dir.normalize();
+            } else if (wraiths.length > 0) {
+                // Auto-assist toward nearest wraith within range if not explicitly clicking
+                let bestW = null;
+                let bestDist = 13;
+                wraiths.forEach(w => {
+                    const d = playerState.pos.distanceTo(w.group.position);
+                    if (d < bestDist) {
+                        bestDist = d;
+                        bestW = w;
+                    }
+                });
+                if (bestW) {
+                    dir.subVectors(bestW.group.position, playerState.pos);
+                    dir.y = 0;
+                    dir.normalize();
+                }
+            }
+
+            const orbGeo = new THREE.SphereGeometry(isOvercharged ? 0.52 : 0.38, 12, 12);
+            const orbMat = new THREE.MeshBasicMaterial({
+                color: isOvercharged ? 0x00e5ff : 0xffaa00
+            });
+            const mesh = new THREE.Mesh(orbGeo, orbMat);
+            mesh.position.set(playerState.pos.x, 1.1, playerState.pos.z);
+            scene.add(mesh);
+
+            sfx.fireball();
+            fireballs.push({
+                mesh,
+                vel: dir.multiplyScalar(25),
+                life: 1.35,
+                pierce: isOvercharged ? 2 : 1,
+                color: isOvercharged ? 0x00e5ff : 0xff6600
+            });
+        }
+
+        function triggerFlameNova() {
+            if (!gameActive || novaCooldown > 0 || heat < 18) return;
+            novaCooldown = 1.4;
+            novaActiveTimer = 0.28;
+            heat = Math.max(5, heat - 10); // Spend a small burst of heat for massive Nova!
+
+            sfx.novaDash();
+            spawnShockwave(playerState.pos, heat >= 85 ? 0x00e5ff : 0xff5500, 9.5);
+            spawnBurst(playerState.pos, 0xffaa00, 22, 1.3);
+
+            // Incinerate nearby Frost Wraiths within Nova radius
+            for (let i = wraiths.length - 1; i >= 0; i--) {
+                const w = wraiths[i];
+                if (playerState.pos.distanceTo(w.group.position) < 7.5) {
+                    spawnBurst(w.group.position, 0x72efdd, 16);
+                    scene.remove(w.group);
+                    wraiths.splice(i, 1);
+                    score += 75;
+                    sfx.shatterWraith();
+                }
+            }
+            updateHUD();
+        }
+
+        // --- HUD & Banners ---
+        const scoreEl = document.getElementById('score-val');
+        const waveEl = document.getElementById('wave-val');
+        const heatPctEl = document.getElementById('heat-pct');
+        const heatFillEl = document.getElementById('heat-bar-fill');
+        const stateBadgeEl = document.getElementById('state-badge');
+        const brazierPips = document.querySelectorAll('.brazier-pip');
+        const bannerEl = document.getElementById('banner');
+        let bannerTimer = null;
+
+        function showBanner(text, color = '#ffae00') {
+            bannerEl.textContent = text;
+            bannerEl.style.color = color;
+            bannerEl.classList.add('show');
+            if (bannerTimer) clearTimeout(bannerTimer);
+            bannerTimer = setTimeout(() => bannerEl.classList.remove('show'), 1400);
+        }
+
+        function updateHUD() {
+            scoreEl.textContent = score;
+            waveEl.textContent = wave;
+            const clampedHeat = Math.max(0, Math.min(100, Math.round(heat)));
+            heatPctEl.textContent = `${clampedHeat}%`;
+            heatFillEl.style.width = `${clampedHeat}%`;
+
+            const isOvercharged = heat >= 85;
+            heatFillEl.classList.toggle('blue-flame', isOvercharged);
+            if (isOvercharged) {
+                stateBadgeEl.textContent = '⚡ BLUE PLASMA OVERCHARGE';
+                stateBadgeEl.style.color = '#00e5ff';
+            } else if (heat < 30) {
+                stateBadgeEl.textContent = '⚠️ FLICKERING EMBER!';
+                stateBadgeEl.style.color = '#ff4d4d';
+            } else {
+                stateBadgeEl.textContent = '🔥 ROARING FLAME';
+                stateBadgeEl.style.color = '#ffae42';
+            }
+
+            braziers.forEach((b, idx) => {
+                brazierPips[idx].classList.toggle('lit', b.lit);
+            });
+        }
+
+        // --- Wave & Game Lifecycle ---
+        function clearList(arr) {
+            arr.forEach(item => scene.remove(item.group || item.mesh));
+            arr.length = 0;
+        }
+
+        function setupNightWave(waveNum) {
+            braziers.forEach(b => {
+                b.lit = false;
+                b.bFlame.visible = false;
+                b.bLight.intensity = 0;
+            });
+
+            clearList(rainClouds);
+            const cloudCount = Math.min(1 + Math.floor(waveNum / 2), 4);
+            for (let i = 0; i < cloudCount; i++) {
+                spawnRainCloud();
+            }
+
+            // Ensure plenty of kindling & coal
+            while (fuels.length < 9) {
+                spawnFuel(Math.random() < 0.3);
+            }
+
+            // Spawn initial wraiths
+            const initialWraiths = Math.min(2 + waveNum, 7);
+            for (let i = 0; i < initialWraiths; i++) {
+                spawnFrostWraith();
+            }
+            updateHUD();
+        }
+
+        function startGame() {
+            sfx.init();
+            document.getElementById('overlay').style.display = 'none';
+
+            clearList(fuels);
+            clearList(fireballs);
+            clearList(wraiths);
+            clearList(rainClouds);
+            clearList(particles);
+            clearList(shockwaves);
+
+            score = 0;
+            wave = 1;
+            heat = 100;
+            playerState.pos.set(0, 0, 0);
+            playerState.vel.set(0, 0, 0);
+            playerGroup.visible = true;
+
+            setupNightWave(wave);
+            showBanner('IGNITE THE 5 BRAZIERS! 🔥', '#ffae00');
+            gameActive = true;
+        }
+
+        function triggerGameOver() {
+            gameActive = false;
+            sfx.hiss();
+            playerGroup.visible = false;
+            spawnBurst(playerState.pos, 0x72efdd, 28, 1.2);
+
+            const overlay = document.getElementById('overlay');
+            document.getElementById('modal-icon').textContent = '❄️';
+            document.getElementById('modal-title').textContent = 'FLAME EXTINGUISHED';
+            document.getElementById('modal-desc').innerHTML = `The Eternal Winter froze your spark on <strong>Night ${wave}</strong> with a score of <strong>${score}</strong>. Will you reignite the courtyard?`;
+            document.getElementById('start-btn').textContent = 'REIGNITE';
+            overlay.style.display = 'flex';
+        }
+
+        // --- Controls (Keyboard + Mouse Click + Mobile Touch) ---
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code === 'Space') castFireball();
+            if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') triggerFlameNova();
+        });
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        // Raycast click to aim fireball on desktop
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+        window.addEventListener('pointerdown', (e) => {
+            if (!gameActive) return;
+            if (e.target.closest('#mobile-controls') || e.target.closest('#overlay')) return;
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const hitPoint = new THREE.Vector3();
+            if (raycaster.ray.intersectPlane(groundPlane, hitPoint)) {
+                castFireball(hitPoint);
+            }
+        });
+
+        // Mobile Joystick & Buttons
+        const joyZone = document.getElementById('joystick-zone');
+        const joyKnob = document.getElementById('joystick-knob');
+        let joyVec = { x: 0, y: 0 };
+        let joyPointerId = null;
+
+        function updateJoystick(clientX, clientY) {
+            const rect = joyZone.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            const maxR = rect.width / 2 - 16;
+            let dx = clientX - cx;
+            let dy = clientY - cy;
+            const dist = Math.hypot(dx, dy);
+            if (dist > maxR) {
+                dx = (dx / dist) * maxR;
+                dy = (dy / dist) * maxR;
+            }
+            joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            joyVec.x = dx / maxR;
+            joyVec.y = dy / maxR;
+        }
+
+        joyZone.addEventListener('pointerdown', (e) => {
+            joyPointerId = e.pointerId;
+            joyZone.setPointerCapture(e.pointerId);
+            updateJoystick(e.clientX, e.clientY);
+        });
+        joyZone.addEventListener('pointermove', (e) => {
+            if (e.pointerId === joyPointerId) updateJoystick(e.clientX, e.clientY);
+        });
+        const resetJoystick = (e) => {
+            if (e.pointerId === joyPointerId) {
+                joyPointerId = null;
+                joyKnob.style.transform = 'translate(-50%, -50%)';
+                joyVec.x = 0;
+                joyVec.y = 0;
+            }
+        };
+        joyZone.addEventListener('pointerup', resetJoystick);
+        joyZone.addEventListener('pointercancel', resetJoystick);
+
+        document.getElementById('fireball-btn').addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            castFireball();
+        });
+        document.getElementById('nova-btn').addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            triggerFlameNova();
+        });
+        document.getElementById('start-btn').addEventListener('click', startGame);
+
+        // --- Main Loop ---
+        const clock = new THREE.Clock();
+        let wraithSpawnTimer = 0;
+        let emberTrailTimer = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+
+            if (gameActive) {
+                if (fireballCooldown > 0) fireballCooldown -= dt;
+                if (novaCooldown > 0) novaCooldown -= dt;
+                if (novaActiveTimer > 0) novaActiveTimer -= dt;
+
+                // Passive heat cooling in the winter night
+                const coolingRate = 3.2 + wave * 0.25;
+                heat -= coolingRate * dt;
+
+                // Movement input
+                let ix = joyVec.x;
+                let iz = joyVec.y;
+                if (keys['KeyW'] || keys['ArrowUp']) iz -= 1;
+                if (keys['KeyS'] || keys['ArrowDown']) iz += 1;
+                if (keys['KeyA'] || keys['ArrowLeft']) ix -= 1;
+                if (keys['KeyD'] || keys['ArrowRight']) ix += 1;
+
+                const len = Math.hypot(ix, iz);
+                if (len > 1) {
+                    ix /= len;
+                    iz /= len;
+                }
+
+                const isOvercharged = heat >= 85;
+                const accel = novaActiveTimer > 0 ? 60 : (isOvercharged ? 38 : 30);
+                const maxSpeed = novaActiveTimer > 0 ? 22 : (isOvercharged ? 14.5 : 11.5);
+
+                playerState.vel.x += ix * accel * dt;
+                playerState.vel.z += iz * accel * dt;
+
+                const damping = Math.pow(0.05, dt);
+                playerState.vel.x *= damping;
+                playerState.vel.z *= damping;
+
+                const spd = Math.hypot(playerState.vel.x, playerState.vel.z);
+                if (spd > maxSpeed) {
+                    playerState.vel.x = (playerState.vel.x / spd) * maxSpeed;
+                    playerState.vel.z = (playerState.vel.z / spd) * maxSpeed;
+                }
+
+                if (spd > 0.3) {
+                    playerState.aimDir.set(playerState.vel.x / spd, 0, playerState.vel.z / spd);
+                }
+
+                playerState.pos.x += playerState.vel.x * dt;
+                playerState.pos.z += playerState.vel.z * dt;
+
+                // Arena boundary clamp
+                const distFromCenter = Math.hypot(playerState.pos.x, playerState.pos.z);
+                if (distFromCenter > ARENA_RADIUS - 1.5) {
+                    const nx = playerState.pos.x / distFromCenter;
+                    const nz = playerState.pos.z / distFromCenter;
+                    playerState.pos.x = nx * (ARENA_RADIUS - 1.5);
+                    playerState.pos.z = nz * (ARENA_RADIUS - 1.5);
+                }
+
+                // Update Player Flame Visuals & Dynamic PointLight
+                const heatScale = 0.45 + (Math.max(heat, 10) / 100) * 0.85;
+                playerGroup.position.copy(playerState.pos);
+                playerGroup.scale.setScalar(heatScale);
+                playerGroup.rotation.y = Math.atan2(playerState.aimDir.x, playerState.aimDir.z);
+
+                // Flickering flame animation
+                outerFlame.scale.set(
+                    1 + Math.sin(elapsed * 18) * 0.08,
+                    1 + Math.cos(elapsed * 22) * 0.12,
+                    1 + Math.sin(elapsed * 15) * 0.08
+                );
+                outerFlameMat.color.setHex(isOvercharged ? 0x00b4d8 : 0xff4500);
+                outerFlameMat.emissive.setHex(isOvercharged ? 0x0077ff : 0xff2200);
+                playerLight.color.setHex(isOvercharged ? 0x00e5ff : 0xff7700);
+                playerLight.intensity = 2.5 + (heat / 100) * 4.5 + Math.sin(elapsed * 20) * 0.4;
+                playerLight.distance = 14 + (heat / 100) * 18;
+
+                // Orbiting embers
+                emberOrbits.forEach((eo, i) => {
+                    const a = elapsed * 4.5 + eo.phase;
+                    eo.mesh.position.set(
+                        Math.cos(a) * 1.35,
+                        0.9 + Math.sin(elapsed * 6 + i) * 0.35,
+                        Math.sin(a) * 1.35
+                    );
+                });
+
+                // Spawn rising fire trail embers as player moves
+                emberTrailTimer += dt;
+                if (emberTrailTimer > 0.06) {
+                    emberTrailTimer = 0;
+                    spawnBurst(playerState.pos, isOvercharged ? 0x00e5ff : 0xff9e00, 1, 0.35);
+                }
+
+                // Check Fuel Pickups (Kindling & Coal)
+                for (let i = fuels.length - 1; i >= 0; i--) {
+                    const f = fuels[i];
+                    f.group.rotation.y += dt * 1.5;
+                    f.group.position.y = 0.5 + Math.sin(elapsed * 3.5 + f.phase) * 0.12;
+
+                    if (playerState.pos.distanceTo(f.group.position) < 1.85) {
+                        heat = Math.min(100, heat + f.heatGain);
+                        score += f.isCoal ? 50 : 25;
+                        sfx.fuelPickup(f.isCoal);
+                        spawnBurst(f.group.position, f.isCoal ? 0xff5500 : 0xffbe0b, 12, 0.8);
+                        scene.remove(f.group);
+                        fuels.splice(i, 1);
+                        spawnFuel(Math.random() < 0.32);
+                    }
+                }
+
+                // Check Ancient Braziers Ignition
+                let litCount = 0;
+                braziers.forEach(b => {
+                    if (b.lit) {
+                        litCount++;
+                        b.bFlame.scale.set(
+                            1 + Math.sin(elapsed * 16) * 0.1,
+                            1 + Math.cos(elapsed * 20) * 0.14,
+                            1 + Math.sin(elapsed * 16) * 0.1
+                        );
+                        // Standing near a lit brazier gently warms you up!
+                        if (playerState.pos.distanceTo(b.pos) < 3.2) {
+                            heat = Math.min(100, heat + 5.5 * dt);
+                        }
+                    } else if (playerState.pos.distanceTo(b.pos) < 2.5) {
+                        b.lit = true;
+                        b.bFlame.visible = true;
+                        b.bLight.intensity = 4.0;
+                        litCount++;
+                        score += 200;
+                        sfx.igniteBrazier();
+                        spawnShockwave(b.pos, 0xff9900, 6);
+                        spawnBurst(b.pos, 0xffaa00, 20, 1.1);
+                        showBanner('BRAZIER IGNITED! 🔥 +200', '#ffae00');
+                    }
+                });
+
+                // Check if all 5 Braziers are lit -> SOLAR SUPERNOVA WAVE CLEAR!
+                if (litCount === BRAZIER_COUNT) {
+                    wave++;
+                    score += 1000;
+                    heat = 100;
+                    sfx.supernova();
+                    spawnShockwave(new THREE.Vector3(0, 0, 0), 0xffee55, 26);
+
+                    // Vaporize all active wraiths
+                    wraiths.forEach(w => {
+                        spawnBurst(w.group.position, 0x72efdd, 14);
+                        scene.remove(w.group);
+                    });
+                    wraiths.length = 0;
+
+                    setupNightWave(wave);
+                    showBanner(`SOLAR SUPERNOVA! NIGHT ${wave} BEGINS! ☀️`, '#ffee55');
+                }
+
+                // Update Fireballs
+                for (let i = fireballs.length - 1; i >= 0; i--) {
+                    const fb = fireballs[i];
+                    fb.life -= dt;
+                    fb.mesh.position.addScaledVector(fb.vel, dt);
+
+                    // Hit wraiths
+                    for (let j = wraiths.length - 1; j >= 0; j--) {
+                        const w = wraiths[j];
+                        const dx = fb.mesh.position.x - w.group.position.x;
+                        const dz = fb.mesh.position.z - w.group.position.z;
+                        if (Math.hypot(dx, dz) < 1.55) {
+                            spawnBurst(w.group.position, 0x72efdd, 16);
+                            scene.remove(w.group);
+                            wraiths.splice(j, 1);
+                            score += 100;
+                            sfx.shatterWraith();
+
+                            // Chance for shattered wraith to drop a glowing coal ember
+                            if (fuels.length < 12 && Math.random() < 0.45) {
+                                spawnFuel(true);
+                            }
+
+                            fb.pierce--;
+                            if (fb.pierce <= 0) {
+                                fb.life = 0;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (fb.life <= 0) {
+                        scene.remove(fb.mesh);
+                        fireballs.splice(i, 1);
+                    }
+                }
+
+                // Spawn & Update Frost Wraiths
+                wraithSpawnTimer += dt;
+                const spawnInterval = Math.max(1.3, 3.6 - wave * 0.28);
+                if (wraithSpawnTimer >= spawnInterval && wraiths.length < 6 + wave * 2) {
+                    wraithSpawnTimer = 0;
+                    spawnFrostWraith();
+                }
+
+                for (let i = wraiths.length - 1; i >= 0; i--) {
+                    const w = wraiths[i];
+                    w.body.rotation.y += dt * 2.5;
+                    w.crown.rotation.z -= dt * 3;
+
+                    // Target nearest lit brazier or the player
+                    let targetPos = playerState.pos;
+                    let bestDist = playerState.pos.distanceTo(w.group.position);
+
+                    braziers.forEach(b => {
+                        if (b.lit) {
+                            const d = b.pos.distanceTo(w.group.position);
+                            if (d < bestDist) {
+                                bestDist = d;
+                                targetPos = b.pos;
+                            }
+                        }
+                    });
+
+                    const dir = new THREE.Vector3().subVectors(targetPos, w.group.position);
+                    dir.y = 0;
+                    if (dir.lengthSq() > 0.01) {
+                        dir.normalize();
+                        w.group.position.addScaledVector(dir, w.speed * dt);
+                    }
+
+                    // Check if Wraith douses a lit Brazier
+                    braziers.forEach(b => {
+                        if (b.lit && w.group.position.distanceTo(b.pos) < 1.8) {
+                            b.lit = false;
+                            b.bFlame.visible = false;
+                            b.bLight.intensity = 0;
+                            sfx.hiss();
+                            spawnBurst(b.pos, 0x72efdd, 16);
+                            showBanner('A BRAZIER WAS FROZEN! ❄️', '#72efdd');
+                            scene.remove(w.group);
+                            wraiths.splice(i, 1);
+                        }
+                    });
+
+                    // Check if Wraith collides with Player
+                    if (wraiths[i] && w.group.position.distanceTo(playerState.pos) < 1.65) {
+                        if (novaActiveTimer > 0) {
+                            spawnBurst(w.group.position, 0x72efdd, 16);
+                            scene.remove(w.group);
+                            wraiths.splice(i, 1);
+                            score += 100;
+                            sfx.shatterWraith();
+                        } else {
+                            heat -= 22;
+                            sfx.hiss();
+                            spawnBurst(playerState.pos, 0x72efdd, 18);
+                            showBanner('FROST CHILL! -22% HEAT ❄️', '#72efdd');
+                            scene.remove(w.group);
+                            wraiths.splice(i, 1);
+                        }
+                    }
+                }
+
+                // Update Rain Clouds
+                rainClouds.forEach(rc => {
+                    rc.group.position.x += rc.vx * dt;
+                    rc.group.position.z += rc.vz * dt;
+                    const rDist = Math.hypot(rc.group.position.x, rc.group.position.z);
+                    if (rDist > ARENA_RADIUS - 4) {
+                        rc.vx *= -1;
+                        rc.vz *= -1;
+                    }
+                    if (playerState.pos.distanceTo(rc.group.position) < rc.radius) {
+                        heat -= 18 * dt;
+                    }
+                });
+
+                updateHUD();
+                if (heat <= 0) {
+                    triggerGameOver();
+                }
+
+                // Smooth Dynamic Camera Follow
+                const camX = playerState.pos.x * 0.45;
+                const camZ = playerState.pos.z * 0.45 + 23;
+                camera.position.x = THREE.MathUtils.lerp(camera.position.x, camX, dt * 4.5);
+                camera.position.z = THREE.MathUtils.lerp(camera.position.z, camZ, dt * 4.5);
+                camera.lookAt(playerState.pos.x * 0.3, 0, playerState.pos.z * 0.3);
+            }
+
+            // Update Shockwaves
+            for (let i = shockwaves.length - 1; i >= 0; i--) {
+                const sw = shockwaves[i];
+                sw.scale += dt * 18;
+                sw.mesh.scale.setScalar(sw.scale);
+                sw.mat.opacity = Math.max(0, 1 - sw.scale / sw.maxRadius);
+                if (sw.scale >= sw.maxRadius) {
+                    scene.remove(sw.mesh);
+                    shockwaves.splice(i, 1);
+                }
+            }
+
+            // Update Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.life -= dt;
+                p.mesh.position.addScaledVector(p.vel, dt);
+                p.vel.y -= 9 * dt;
+                p.mesh.rotation.x += dt * 6;
+                p.mesh.scale.setScalar(Math.max(p.life, 0.01));
+                if (p.life <= 0) {
+                    scene.remove(p.mesh);
+                    particles.splice(i, 1);
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
