@@ -73,18 +73,104 @@
             font-size: 12px;
         }
 
-        #lives-row {
+        #lives-row, #rockets-row {
             display: inline-flex;
             gap: 4px;
             font-size: 18px;
         }
-        .life-pip {
+        .life-pip, .rocket-pip {
             transition: transform 0.25s, opacity 0.25s;
         }
-        .life-pip.lost {
+        .life-pip.lost, .rocket-pip.empty {
             opacity: 0.2;
             filter: grayscale(1);
             transform: scale(0.75);
+        }
+
+        /* Rocket Launch Button (Mobile + Desktop) */
+        #rocket-btn {
+            position: absolute;
+            right: 22px;
+            bottom: 68px;
+            z-index: 20;
+            background: linear-gradient(135deg, #ef4444, #f97316);
+            color: #ffffff;
+            border: 3px solid #fde047;
+            border-radius: 999px;
+            padding: 12px 22px;
+            font-size: 15px;
+            font-weight: 900;
+            letter-spacing: 0.8px;
+            cursor: pointer;
+            box-shadow: 0 8px 24px rgba(239, 68, 68, 0.55);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            touch-action: none;
+            transition: transform 0.12s, opacity 0.2s, filter 0.2s, box-shadow 0.2s;
+        }
+        #rocket-btn:active {
+            transform: scale(0.92);
+        }
+        #rocket-btn.disabled {
+            opacity: 0.45;
+            filter: grayscale(0.7);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: none;
+        }
+        #rocket-btn.boss-ready {
+            animation: rocketPulse 0.9s infinite ease-in-out;
+        }
+        @keyframes rocketPulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 18px rgba(239, 68, 68, 0.7); }
+            50% { transform: scale(1.08); box-shadow: 0 0 32px rgba(250, 204, 21, 0.95); }
+        }
+
+        /* Skip Power-Up Button (Bottom Left) */
+        #skip-gate-btn {
+            position: absolute;
+            left: 22px;
+            bottom: 68px;
+            z-index: 20;
+            background: rgba(15, 23, 42, 0.88);
+            color: #bae6fd;
+            border: 2px solid #38bdf8;
+            border-radius: 999px;
+            padding: 11px 18px;
+            font-size: 14px;
+            font-weight: 900;
+            letter-spacing: 0.6px;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            touch-action: none;
+            transition: transform 0.12s, background 0.15s;
+        }
+        #skip-gate-btn:hover {
+            background: rgba(56, 189, 248, 0.22);
+        }
+        #skip-gate-btn:active {
+            transform: scale(0.92);
+        }
+
+        .gate-skip-pill {
+            margin-top: 4px;
+            font-size: 10px;
+            font-weight: 800;
+            color: #cbd5e1;
+            background: rgba(255, 255, 255, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            border-radius: 999px;
+            padding: 2px 8px;
+            cursor: pointer;
+            pointer-events: auto;
+            display: inline-block;
+        }
+        .gate-skip-pill:hover {
+            background: rgba(239, 68, 68, 0.7);
+            color: #fff;
         }
 
         /* Boss Health Bar */
@@ -326,10 +412,18 @@
             <div id="dps-val" class="hud-big" style="color:#4ade80;">10 DPS</div>
             <div class="hud-sub" style="justify-content:flex-end;">
                 <span>Clones: <strong id="squad-val">1</strong></span>
-                <span>Swarm Left: <strong id="horde-val">0</strong></span>
+                <span>Swarm: <strong id="horde-val">0</strong></span>
+                <span id="rockets-row" title="Boss Rockets (Max 3)">
+                    <span class="rocket-pip">🚀</span>
+                    <span class="rocket-pip">🚀</span>
+                    <span class="rocket-pip">🚀</span>
+                </span>
             </div>
         </div>
     </div>
+
+    <button id="skip-gate-btn" type="button">⏭️ SKIP POWER-UP [E]</button>
+    <button id="rocket-btn" type="button">🚀 BOSS ROCKET (<span id="rocket-count">1</span>/3) [SPACE]</button>
 
     <div id="boss-bar-container">
         <div id="boss-title">
@@ -620,6 +714,8 @@
         let level = 1;
         let lives = 3;
         const maxLives = 3;
+        let rockets = 1;
+        const maxRockets = 3;
         let gunTier = 0;
         let bonusFireRate = 0;
         let bonusDamage = 0;
@@ -636,6 +732,7 @@
 
         const enemies = [];
         const bullets = [];
+        const rocketsInFlight = [];
         const upgradeGates = [];
         const particles = [];
 
@@ -644,6 +741,9 @@
         const levelEl = document.getElementById('level-val');
         const gunBadgeEl = document.getElementById('gun-badge');
         const lifePips = document.querySelectorAll('.life-pip');
+        const rocketPips = document.querySelectorAll('.rocket-pip');
+        const rocketCountEl = document.getElementById('rocket-count');
+        const rocketBtnEl = document.getElementById('rocket-btn');
         const dpsEl = document.getElementById('dps-val');
         const squadEl = document.getElementById('squad-val');
         const hordeEl = document.getElementById('horde-val');
@@ -674,6 +774,14 @@
             lifePips.forEach((pip, idx) => {
                 pip.classList.toggle('lost', idx >= lives);
             });
+            rocketPips.forEach((pip, idx) => {
+                pip.classList.toggle('empty', idx >= rockets);
+            });
+            rocketCountEl.textContent = rockets;
+            const canLaunch = activeBoss && rockets > 0;
+            rocketBtnEl.classList.toggle('disabled', !canLaunch);
+            rocketBtnEl.classList.toggle('boss-ready', Boolean(canLaunch));
+
             dpsEl.textContent = `${approxDps.toLocaleString()} DPS`;
             squadEl.textContent = squadCount;
             hordeEl.textContent = enemies.length;
@@ -799,14 +907,19 @@
         }
 
         // --- Spawn Left-Lane Shootable Upgrade Gates (X = -7.6) ---
-        function spawnUpgradeGate() {
+        function spawnUpgradeGate(excludeChoice = null, customZ = null) {
             if (upgradeGates.length >= 2) return;
 
-            // Pick upgrade type: Gun Tier Up if available, or Fire Rate / Damage / Squad Clone
-            const types = ['FIRERATE', 'DAMAGE'];
+            // Pick upgrade type: Gun Tier Up if available, or Fire Rate / Damage / Squad Clone / Boss Rocket
+            let types = ['FIRERATE', 'DAMAGE'];
             if (squadCount < 6) types.push('SQUAD');
+            if (rockets < maxRockets) types.push('ROCKET', 'ROCKET');
             if (gunTier < GUN_TIERS.length - 1) {
                 types.push('GUNTIER', 'GUNTIER');
+            }
+            if (excludeChoice) {
+                const filtered = types.filter(t => t !== excludeChoice);
+                if (filtered.length > 0) types = filtered;
             }
             const choice = types[Math.floor(Math.random() * types.length)];
 
@@ -834,6 +947,10 @@
                 title = '+1 SQUAD CLONE';
                 hitsRequired = Math.max(12, Math.round(bulletsPerSec * Math.min(1.4 + (squadCount - 1) * 0.4 + totalUpgrades * 0.2, 3.6)));
                 boxColor = 0xa855f7;
+            } else if (choice === 'ROCKET') {
+                title = '🚀 +1 BOSS ROCKET';
+                hitsRequired = Math.max(10, Math.round(bulletsPerSec * Math.min(1.2 + totalUpgrades * 0.22, 2.8)));
+                boxColor = 0xef4444;
             }
 
             const group = new THREE.Group();
@@ -858,16 +975,16 @@
             frame.position.y = 1.4;
             group.add(frame);
 
-            group.position.set(-7.6, 0, SPAWN_Z + 18);
+            group.position.set(-7.6, 0, customZ !== null ? customZ : SPAWN_Z + 18);
             scene.add(group);
 
-            // Floating HTML label synced to 3D position
+            // Floating HTML label synced to 3D position + interactive Skip pill
             const labelEl = document.createElement('div');
             labelEl.className = `gate-label ${isGunTier ? 'gun-tier' : ''}`;
-            labelEl.innerHTML = `<div class="gate-title">${title}</div><div class="gate-hits">🎯 ${hitsRequired}</div>`;
+            labelEl.innerHTML = `<div class="gate-title">${title}</div><div class="gate-hits">🎯 ${hitsRequired}</div><div class="gate-skip-pill">⏭️ SKIP</div>`;
             labelsLayerEl.appendChild(labelEl);
 
-            upgradeGates.push({
+            const gateObj = {
                 group,
                 panel,
                 choice,
@@ -875,7 +992,41 @@
                 hitsLeft: hitsRequired,
                 labelEl,
                 speed: 4.8 + Math.min((level - 1) * 0.35 + totalUpgrades * 0.2, 2.6)
+            };
+
+            labelEl.querySelector('.gate-skip-pill').addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                skipUpgradeGate(gateObj);
             });
+
+            upgradeGates.push(gateObj);
+        }
+
+        function skipUpgradeGate(targetGate = null) {
+            if (!gameActive || upgradeGates.length === 0) return;
+
+            // Default to the closest (front-most) gate in the left lane
+            let gateToSkip = targetGate;
+            if (!gateToSkip) {
+                gateToSkip = upgradeGates.reduce((best, g) => (g.group.position.z > best.group.position.z ? g : best), upgradeGates[0]);
+            }
+
+            const idx = upgradeGates.indexOf(gateToSkip);
+            if (idx === -1) return;
+
+            const oldChoice = gateToSkip.choice;
+            spawnParticles(gateToSkip.group.position, 0x38bdf8, 10);
+            sfx.gateTick();
+            scene.remove(gateToSkip.group);
+            gateToSkip.labelEl.remove();
+            upgradeGates.splice(idx, 1);
+
+            // Immediately spawn a replacement gate with a different power-up type!
+            if (upgradeGates.length === 0) {
+                spawnUpgradeGate(oldChoice, SPAWN_Z + 28);
+            }
+            showToast('⏭️ POWER-UP SKIPPED!', '#38bdf8');
         }
 
         function applyUpgrade(gate) {
@@ -894,6 +1045,9 @@
             } else if (gate.choice === 'DAMAGE') {
                 bonusDamage += 5 + Math.round(level * 1.5);
                 showToast(`💥 BULLET DAMAGE BOOSTED!`, '#38bdf8');
+            } else if (gate.choice === 'ROCKET') {
+                rockets = Math.min(maxRockets, rockets + 1);
+                showToast(`🚀 +1 BOSS ROCKET LOADED! (${rockets}/${maxRockets})`, '#ef4444');
             } else {
                 bonusFireRate += 1.4;
                 showToast(`⚡ FIRE RATE OVERCLOCKED!`, '#4ade80');
@@ -960,17 +1114,85 @@
             }
         }
 
+        // --- Launching Boss-Buster Rockets (Takes 50% of Boss Max HP) ---
+        function launchBossRocket() {
+            if (!gameActive) return;
+            if (rockets <= 0) {
+                showToast('NO BOSS ROCKETS LEFT! SHOOT 🚀 GATES!', '#ef4444');
+                return;
+            }
+            if (!activeBoss) {
+                showToast('SAVE ROCKETS FOR A BOSS! 🚀', '#facc15');
+                return;
+            }
+
+            rockets--;
+            sfx.upgradeUnlock();
+            updateHUD();
+
+            // Build 3D Warhead Rocket Mesh
+            const rocketGroup = new THREE.Group();
+            const body = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.28, 0.34, 1.8, 12),
+                new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 })
+            );
+            body.rotation.x = Math.PI / 2;
+            const nose = new THREE.Mesh(
+                new THREE.ConeGeometry(0.32, 0.7, 12),
+                new THREE.MeshBasicMaterial({ color: 0xef4444 })
+            );
+            nose.rotation.x = -Math.PI / 2;
+            nose.position.z = -1.25;
+            const flame = new THREE.Mesh(
+                new THREE.ConeGeometry(0.26, 0.8, 10),
+                new THREE.MeshBasicMaterial({ color: 0xfacc15 })
+            );
+            flame.rotation.x = Math.PI / 2;
+            flame.position.z = 1.25;
+            rocketGroup.add(body, nose, flame);
+
+            rocketGroup.position.set(playerX, 1.6, DEFENSE_Z - 1.0);
+            scene.add(rocketGroup);
+
+            rocketsInFlight.push({
+                group: rocketGroup,
+                speed: 42
+            });
+            showToast('🚀 BOSS ROCKET LAUNCHED!', '#f97316');
+        }
+
         // --- Input Controls (Drag Anywhere on Screen or A/D / Arrow Keys) ---
+        const skipGateBtnEl = document.getElementById('skip-gate-btn');
         const keys = {};
-        window.addEventListener('keydown', (e) => { keys[e.code] = true; });
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if ((e.code === 'Space' || e.code === 'KeyR') && !e.repeat) {
+                launchBossRocket();
+            }
+            if ((e.code === 'KeyE' || e.code === 'KeyQ' || e.code === 'KeyS' || e.code === 'ArrowDown') && !e.repeat) {
+                skipUpgradeGate();
+            }
+        });
         window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+        rocketBtnEl.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            launchBossRocket();
+        });
+
+        skipGateBtnEl.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            skipUpgradeGate();
+        });
 
         let isDragging = false;
         let dragStartX = 0;
         let playerStartX = 0;
 
         window.addEventListener('pointerdown', (e) => {
-            if (!gameActive || e.target.closest('#overlay')) return;
+            if (!gameActive || e.target.closest('#overlay') || e.target.closest('#rocket-btn') || e.target.closest('#skip-gate-btn') || e.target.closest('.gate-skip-pill')) return;
             isDragging = true;
             dragStartX = e.clientX;
             playerStartX = targetPlayerX;
@@ -991,6 +1213,8 @@
             enemies.length = 0;
             bullets.forEach(b => scene.remove(b.mesh));
             bullets.length = 0;
+            rocketsInFlight.forEach(r => scene.remove(r.group));
+            rocketsInFlight.length = 0;
             upgradeGates.forEach(g => {
                 scene.remove(g.group);
                 g.labelEl.remove();
@@ -1008,6 +1232,7 @@
             score = 0;
             level = 1;
             lives = maxLives;
+            rockets = 1;
             gunTier = 0;
             bonusFireRate = 0;
             bonusDamage = 0;
@@ -1189,6 +1414,61 @@
                     if (bulletConsumed || b.life <= 0 || b.mesh.position.z < SPAWN_Z - 5) {
                         scene.remove(b.mesh);
                         bullets.splice(i, 1);
+                    }
+                }
+
+                // Update Boss Rockets in Flight (Homes in on Active Boss & takes away 50% of its Max Health!)
+                for (let rIdx = rocketsInFlight.length - 1; rIdx >= 0; rIdx--) {
+                    const r = rocketsInFlight[rIdx];
+                    spawnParticles(r.group.position, 0xf97316, 1);
+
+                    if (!activeBoss) {
+                        scene.remove(r.group);
+                        rocketsInFlight.splice(rIdx, 1);
+                        continue;
+                    }
+
+                    const targetPos = activeBoss.group.position;
+                    const dx = targetPos.x - r.group.position.x;
+                    const dz = targetPos.z - r.group.position.z;
+                    const dist = Math.hypot(dx, dz);
+
+                    if (dist < activeBoss.radius + 1.4) {
+                        // Direct Warhead Impact: Takes away 50% of Boss Max HP!
+                        const dmg = Math.ceil(activeBoss.maxHp * 0.5);
+                        activeBoss.hp -= dmg;
+                        activeBoss.flashTimer = 0.15;
+                        activeBoss.body.material = runnerFlashMat;
+                        spawnParticles(targetPos, 0xfacc15, 30);
+                        spawnParticles(targetPos, 0xef4444, 20);
+                        sfx.bossKill();
+
+                        scene.remove(r.group);
+                        rocketsInFlight.splice(rIdx, 1);
+
+                        if (activeBoss.hp <= 0) {
+                            const bIndex = enemies.indexOf(activeBoss);
+                            if (bIndex !== -1) enemies.splice(bIndex, 1);
+                            scene.remove(activeBoss.group);
+                            score += 1000 * level;
+                            activeBoss = null;
+                            level++;
+                            enemiesKilledInLevel = 0;
+                            bossSpawnedForLevel = false;
+                            if (lives < maxLives) {
+                                lives++;
+                                showToast(`👑 BOSS VAPORIZED! +1 ❤️ LEVEL ${level}!`, '#facc15');
+                            } else {
+                                showToast(`👑 BOSS VAPORIZED! LEVEL ${level}!`, '#facc15');
+                            }
+                        } else {
+                            showToast(`💥 ROCKET HIT! -50% BOSS HP!`, '#f97316');
+                        }
+                        updateHUD();
+                    } else {
+                        r.group.position.x += (dx / dist) * r.speed * dt;
+                        r.group.position.z += (dz / dist) * r.speed * dt;
+                        r.group.rotation.y = Math.atan2(-dx, -dz);
                     }
                 }
 
